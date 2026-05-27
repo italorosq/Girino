@@ -1,0 +1,69 @@
+# ==============================================================
+# PlatformIO / Firmware
+# ==============================================================
+.pio/
+firmware/.pio/
+firmware/build/
+firmware/.vscode/
+*.bin
+*.elf
+*.hex
+*.map
+*.su
+*.o
+*.d
+*.lst
+
+# Secrets — nunca commitar credenciais
+.env
+firmware/.env
+secrets.h
+
+# ============================================================== 
+# KiCad
+# ==============================================================
+hardware/kicad/*-backups/
+hardware/kicad/*.bak
+hardware/kicad/*.bck
+hardware/kicad/*-cache.lib
+hardware/kicad/*-rescue.lib
+hardware/kicad/fp-info-cache
+hardware/kicad/fp-lib-table
+hardware/kicad/sym-lib-table
+
+# ==============================================================
+# FreeCAD
+# ==============================================================
+mechanical/cad/*.FCStd1
+mechanical/cad/*.FCBak
+
+# ==============================================================
+# STL / STEP (manter os que estão em stl/ e step/)
+# ==============================================================
+# Não ignorar stl/ e step/ intencionalmente
+
+# ==============================================================
+# OS / Editor
+# ==============================================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-*
+
+# ==============================================================
+# Gerbers temporários
+# ==============================================================
+hardware/gerbers/*.gbr
+hardware/gerbers/*.drl
+hardware/gerbers/*.gtl
+hardware/gerbers/*.gbl
+hardware/gerbers/*.gts
+hardware/gerbers/*.gbs
+hardware/gerbers/*.gbo
+hardware/gerbers/*.gto
+# Manter apenas os .zip
+!hardware/gerbers/*.zip

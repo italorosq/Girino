@@ -1,0 +1,44 @@
+GNU GENERAL PUBLIC LICENSE
+Version 3, 29 June 2007
+
+Copyright (C) 2025 LaRA — Laboratório de Robótica e Automação
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+========================================================================
+
+NOTA SOBRE LICENCIAMENTO MÚLTIPLO
+----------------------------------
+
+Este repositório contém materiais sob licenças diferentes:
+
+1. FIRMWARE (código fonte)
+   Licença: GNU General Public License v3.0 (GPL-3.0)
+   Aplica-se a: todo código fonte em firmware/, examples/
+   Texto completo: https://www.gnu.org/licenses/gpl-3.0.txt
+
+2. HARDWARE (PCBs, esquemáticos, projetos KiCad)
+   Licença: CERN Open Hardware Licence Version 2 - Strongly Reciprocal (CERN-OHL-S-2.0)
+   Aplica-se a: todo conteúdo em hardware/
+   Texto completo: https://ohwr.org/cern_ohl_s_v2.txt
+
+3. DOCUMENTAÇÃO (textos, imagens, diagramas)
+   Licença: Creative Commons Attribution-ShareAlike 4.0 International (CC-BY-SA-4.0)
+   Aplica-se a: todo conteúdo em docs/, gallery/, README.md
+   Texto completo: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+4. MECÂNICO (modelos 3D, STL, STEP, FreeCAD)
+   Licença: CERN Open Hardware Licence Version 2 - Strongly Reciprocal (CERN-OHL-S-2.0)
+   Aplica-se a: todo conteúdo em mechanical/
+   Texto completo: https://ohwr.org/cern_ohl_s_v2.txt
