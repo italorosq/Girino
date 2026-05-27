@@ -97,9 +97,9 @@ curl http://192.168.1.100/api/status
 |---|---|---|
 | GPIO5 | D1 | Encoder Canal A |
 | GPIO4 | D2 | Encoder Canal B |
-| GPIO14 | D5 | Motor PWM |
-| GPIO12 | D6 | Motor Direção IN1 |
-| GPIO13 | D7 | Motor Direção IN2 |
+| GPIO14 | D5 | Motor Direção IN3 |
+| GPIO12 | D6 | Motor Direção IN4 |
+| GPIO13 | D7 | Motor PWM ENB |
 | GPIO2 | LED | LED onboard (debug) |
 
 ## Dependências

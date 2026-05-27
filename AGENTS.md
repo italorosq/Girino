@@ -104,9 +104,9 @@ Girino/
 |---|---|---|---|
 | GPIO5 | D1 | Encoder Canal A (LPD3806) | Input |
 | GPIO4 | D2 | Encoder Canal B (LPD3806) | Input |
-| GPIO14 | D5 | Motor PWM | Output |
-| GPIO12 | D6 | Motor Direção IN1 | Output |
-| GPIO13 | D7 | Motor Direção IN2 | Output |
+| GPIO14 | D5 | Motor Direção IN3 | Output |
+| GPIO12 | D6 | Motor Direção IN4 | Output |
+| GPIO13 | D7 | Motor PWM ENB | Output |
 | GPIO2 | LED | LED onboard (ativo-baixo) | Output |
 
 ## Licenças

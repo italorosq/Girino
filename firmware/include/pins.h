@@ -8,9 +8,9 @@
  * ──────────────────────────────────
  * D1 (GPIO5)  -> Encoder canal A
  * D2 (GPIO4)  -> Encoder canal B
- * D5 (GPIO14) -> Motor PWM
- * D6 (GPIO12) -> Motor direção (IN1)
- * D7 (GPIO13) -> Motor direção (IN2)
+ * D5 (GPIO14) -> Motor direção (IN3)
+ * D6 (GPIO12) -> Motor direção (IN4)
+ * D7 (GPIO13) -> Motor PWM (ENB)
  */
 
 #ifndef PINS_H
@@ -21,9 +21,9 @@
 #define ENCODER_B_PIN    4    // GPIO4  (D2)
 
 // --- Controle do Motor DC ---
-#define MOTOR_PWM_PIN    14   // GPIO14 (D5)
-#define MOTOR_DIR_PIN1   12   // GPIO12 (D6)
-#define MOTOR_DIR_PIN2   13   // GPIO13 (D7)
+#define MOTOR_PWM_PIN    13   // GPIO13 (D7) - ENB
+#define MOTOR_DIR_PIN1   14   // GPIO14 (D5) - IN3
+#define MOTOR_DIR_PIN2   12   // GPIO12 (D6) - IN4
 
 // --- LED onboard (debug) ---
 #define LED_BUILTIN_PIN  2    // GPIO2 (LED onboard ativo-baixo)

@@ -24,12 +24,12 @@ Ver lista completa em [`hardware/bom/`](../hardware/bom/).
                     │              │
               GPIO14│              │ GPIO12
          (D5) ────→│              │←──── (D6)
-         Motor PWM  │              │ Motor DIR IN1
+         Motor IN3  │              │ Motor IN4
                     │              │
               GPIO13│              │ GPIO2
          (D7) ────→│              │←──── (D4)
-         Motor DIR  │              │ LED onboard
-           IN2      │              │
+         Motor ENB  │              │ LED onboard
+            PWM     │              │
                     │              │
               3V3   │              │  GND
               3.3V  │              │  GND
@@ -49,9 +49,9 @@ Ver lista completa em [`hardware/bom/`](../hardware/bom/).
 
 | Pino Driver | Conexão |
 |---|---|
-| IN1 | GPIO12 (D6) |
-| IN2 | GPIO13 (D7) |
-| PWM / EN | GPIO14 (D5) |
+| IN3 | GPIO14 (D5) |
+| IN4 | GPIO12 (D6) |
+| PWM / ENB | GPIO13 (D7) |
 | VCC | Fonte do motor |
 | GND | GND comum |
 | OUT1 / OUT2 | Motor DC |
@@ -99,4 +99,4 @@ Antes de prosseguir para o firmware:
 | ESP8266 não liga | Alimentação inadequada | Verificar 3.3V no pino |
 | Encoder não conta | Pinos errados ou sem pull-up | Verificar GPIO5/GPIO4 |
 | Motor não gira | Driver sem alimentação | Verificar VCC no driver |
-| Motor gira errado | IN1/IN2 invertidos | Trocar conexões IN1 ↔ IN2 |
+| Motor gira errado | IN3/IN4 invertidos | Trocar conexões IN3 ↔ IN4 |

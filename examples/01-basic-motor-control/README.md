@@ -20,9 +20,9 @@ O PWM controla a potência entregue ao motor variando o tempo que o sinal fica e
 
 ### Controle de Direção
 
-Usando dois pinos digitais (IN1 e IN2):
+Usando dois pinos digitais de direcao (IN3 e IN4):
 
-| IN1 | IN2 | Resultado |
+| IN3 | IN4 | Resultado |
 |-----|-----|-----------|
 | HIGH | LOW | Sentido horário |
 | LOW | HIGH | Sentido anti-horário |

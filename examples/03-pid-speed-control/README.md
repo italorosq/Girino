@@ -26,7 +26,9 @@ Implementação de controlador PID para manter velocidade constante do motor.
 
 ## Código
 
-> Em breve — será adicionado com a implementação.
+Este exemplo conceitual e o código executável de teste estão em:
+
+- [`examples/05-pid-web-test/`](../05-pid-web-test/)
 
 ## Exercícios Propostos
 

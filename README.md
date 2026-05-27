@@ -87,6 +87,7 @@ pio run -t upload --upload-port girino.local
 | 02 | [Leitura de Encoder](examples/02-encoder-reading/) | Ler pulsos e calcular velocidade |
 | 03 | [Controle PID](examples/03-pid-speed-control/) | Malha fechada de velocidade |
 | 04 | [OTA Web Update](examples/04-ota-web-update/) | Atualizar firmware via Wi-Fi |
+| 05 | [PID Web Test](examples/05-pid-web-test/) | Teste prático de PID com painel web e gráfico |
 
 ## Contribuindo
 

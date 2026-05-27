@@ -5,6 +5,8 @@
 firmware/.pio/
 firmware/build/
 firmware/.vscode/
+examples/**/.pio/
+examples/**/.vscode/
 *.bin
 *.elf
 *.hex

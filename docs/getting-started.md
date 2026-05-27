@@ -35,9 +35,9 @@ Siga o guia detalhado em [hardware-assembly.md](hardware-assembly.md).
 ESP8266 WROOM
 ├── D1 (GPIO5)  ← Encoder A (fio amarelo)
 ├── D2 (GPIO4)  ← Encoder B (fio verde)
-├── D5 (GPIO14) → Motor PWM
-├── D6 (GPIO12) → Motor DIR IN1
-├── D7 (GPIO13) → Motor DIR IN2
+├── D5 (GPIO14) → Motor DIR IN3
+├── D6 (GPIO12) → Motor DIR IN4
+├── D7 (GPIO13) → Motor PWM ENB
 ├── Vin          ← 5V (módulo conversão)
 ├── GND         ← GND comum
 └── USB         ← Para gravação inicial
