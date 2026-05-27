@@ -17,6 +17,7 @@ Documentação técnica da plataforma didática Girino.
 |---|---|
 | [Referências de Pesquisa](referencias-pesquisa.md) | Levantamento bibliográfico (~70 referências) para artigo |
 | [Análise Comparativa](analise-comparativa.md) | Review dos trabalhos relacionados, gap analysis e estratégia de publicação |
+| [Plano PID](plano-pid.md) | Métodos de sintonia, auto-tune, arquitetura e exemplos didáticos |
 
 ## Recursos
 

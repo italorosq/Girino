@@ -177,7 +177,10 @@ Plataformas existentes (MotoShield, OpenMCT, TCLab, Reck 2015) usam Arduino UNO/
 
 ### Pendências para o artigo
 
-- Implementar controle PID no firmware
+- Implementar controle PID no firmware (ver `docs/plano-pid.md`)
+- Implementar auto-tune via relay feedback (Åström-Hägglund)
+- Comparar 3 métodos de sintonia: Ziegler-Nichols, Tyreus-Luyben, Cohen-Coon
 - Modelagem matemática do sistema motor+encoder
+- Interface web com gráficos de resposta ao degrau (Chart.js)
 - Avaliação pedagógica com alunos
 - Comparação experimental: simulação vs hardware real
