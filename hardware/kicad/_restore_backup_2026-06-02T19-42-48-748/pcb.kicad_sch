@@ -3606,7 +3606,7 @@
 			)
 		)
 		(pin "1"
-			(uuid "cf98c5ea-f06a-4461-a73f-6cb39491c89f")
+			(uuid "cf98c5ea-f06a-4461-a73f-6cb39491c89e")
 		)
 		(instances
 			(project "pcb"
@@ -3722,6 +3722,84 @@
 			(project "pcb"
 				(path "/19ffb8e0-9f88-41e8-beab-35b1d241be4c"
 					(reference "U2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "PCM_SparkFun-PowerSymbol:VIN")
+		(at 163.83 97.79 180)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "b084dc69-252f-4846-8f31-6b176597d5a3")
+		(property "Reference" "#PWR04"
+			(at 163.83 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "VIN"
+			(at 163.83 101.6 0)
+			(show_name no)
+			(do_not_autoplace yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 163.83 97.79 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 163.83 97.79 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"VIN\""
+			(at 163.83 91.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "ffb9ed0c-c0b3-48ec-80c6-6adb3764f3d2")
+		)
+		(instances
+			(project "pcb"
+				(path "/19ffb8e0-9f88-41e8-beab-35b1d241be4c"
+					(reference "#PWR04")
 					(unit 1)
 				)
 			)
@@ -4038,7 +4116,7 @@
 			)
 		)
 		(pin "1"
-			(uuid "ffb9ed0c-c0b3-48ec-80c6-6adb3764f3d3")
+			(uuid "ffb9ed0c-c0b3-48ec-80c6-6adb3764f3d2")
 		)
 		(instances
 			(project "pcb"
