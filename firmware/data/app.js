@@ -683,6 +683,7 @@ class UIController {
 
       // Status
       statRpm: document.getElementById('stat-rpm'),
+      statSetpoint: document.getElementById('stat-setpoint'),
       statPulses: document.getElementById('stat-pulses'),
       statRssi: document.getElementById('stat-rssi'),
       statHeap: document.getElementById('stat-heap'),
@@ -693,10 +694,10 @@ class UIController {
 
       // Panels
       modePanel: document.getElementById('mode-panel'),
-      controlsPanel: document.getElementById('controls-panel'),
       pidPanel: document.getElementById('pid-panel'),
       autotunePanel: document.getElementById('autotune-panel'),
-      openLoopPanel: document.getElementById('open-loop-panel'),
+      openLoopContent: document.getElementById('open-loop-content'),
+      setpointContent: document.getElementById('setpoint-content'),
     };
   }
 
@@ -738,16 +739,18 @@ class UIController {
     // Esconder todos os painéis de modo
     this.els.pidPanel.classList.add('hidden');
     this.els.autotunePanel.classList.add('hidden');
-    this.els.openLoopPanel.classList.add('hidden');
+    this.els.openLoopContent.classList.add('hidden');
+    this.els.setpointContent.classList.add('hidden');
 
     // Mostrar painel correto
     switch (mode) {
       case 'open-loop':
-        this.els.openLoopPanel.classList.remove('hidden');
+        this.els.openLoopContent.classList.remove('hidden');
         this.els.btnStart.disabled = false;
         break;
       case 'pid':
         this.els.pidPanel.classList.remove('hidden');
+        this.els.setpointContent.classList.remove('hidden');
         this.els.btnStart.disabled = false;
         break;
       case 'autotune':
@@ -951,6 +954,7 @@ class UIController {
 
       // Atualizar status na tela
       this.els.statRpm.textContent = data.rpm.toFixed(1);
+      this.els.statSetpoint.textContent = setpoint.toFixed(0);
       this.els.statPulses.textContent = data.pulses;
     }, CONFIG.POLL_INTERVAL);
 

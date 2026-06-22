@@ -154,6 +154,12 @@ header {
   margin-bottom: 0;
 }
 
+.card-divider {
+  border: none;
+  border-top: 1px solid var(--card-border);
+  margin: 16px 0;
+}
+
 /* --- Chart --- */
 .chart-container {
   position: relative;
@@ -164,6 +170,72 @@ header {
 .chart-container canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ctrl-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--card-border);
+  margin: 0 4px;
+}
+
+.btn-ctrl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: opacity var(--transition), transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-ctrl:active { transform: scale(0.9); }
+.btn-ctrl:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+.btn-ctrl-success { background: var(--success); color: #fff; }
+.btn-ctrl-success:hover:not(:disabled) { opacity: 0.85; }
+
+.btn-ctrl-warning { background: var(--warning); color: #fff; }
+.btn-ctrl-warning:hover:not(:disabled) { opacity: 0.85; }
+
+.btn-ctrl-danger { background: var(--danger); color: #fff; }
+.btn-ctrl-danger:hover:not(:disabled) { opacity: 0.85; }
+
+.chart-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.chart-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.chart-stat-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.chart-stat-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', monospace;
 }
 
 /* --- Buttons --- */
