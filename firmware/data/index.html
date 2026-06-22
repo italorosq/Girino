@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#2e7d32">
+  <meta name="description" content="Girino — Plataforma didática de controle de motor DC">
+  <title>Girino — Controle de Motor</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐸</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header>
+    <div class="header-left">
+      <h1>Girino</h1>
+      <span class="version" id="version">v--</span>
+    </div>
+    <div class="header-right">
+      <span class="conn-dot" id="conn-dot" title="Status da conexão"></span>
+      <span class="conn-label" id="conn-label">conectando...</span>
+    </div>
+  </header>
+
+  <!-- ===== GRÁFICO ===== -->
+  <section class="card" id="chart-panel">
+    <div class="card-header">
+      <h2>Resposta em Tempo Real</h2>
+      <button class="btn-icon" id="btn-export-csv" title="Exportar CSV">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+    </div>
+    <div class="chart-container">
+      <canvas id="chart"></canvas>
+    </div>
+  </section>
+
+  <!-- ===== MODO DE OPERAÇÃO ===== -->
+  <section class="card" id="mode-panel">
+    <h2>Modo de Operação</h2>
+    <div class="radio-group">
+      <label class="radio-btn">
+        <input type="radio" name="mode" value="open-loop" checked>
+        <span class="radio-label">Malha Aberta</span>
+      </label>
+      <label class="radio-btn">
+        <input type="radio" name="mode" value="pid">
+        <span class="radio-label">PID</span>
+      </label>
+      <label class="radio-btn">
+        <input type="radio" name="mode" value="autotune">
+        <span class="radio-label">Auto-Tune</span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ===== CONTROLES GERAIS ===== -->
+  <section class="card" id="controls-panel">
+    <h2>Controles</h2>
+    <div class="btn-row">
+      <button class="btn btn-success" id="btn-start">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Iniciar
+      </button>
+      <button class="btn btn-warning" id="btn-pause" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        Pausar
+      </button>
+      <button class="btn btn-danger" id="btn-stop" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        Parar
+      </button>
+    </div>
+    <div class="status-badge" id="run-status">Parado</div>
+  </section>
+
+  <!-- ===== PID ===== -->
+  <section class="card" id="pid-panel">
+    <h2>Controle PID</h2>
+
+    <div class="form-row">
+      <label for="input-setpoint">Setpoint (RPM)</label>
+      <input type="number" id="input-setpoint" value="50" min="0" max="300" step="1">
+    </div>
+
+    <div class="form-row">
+      <label for="select-tuning">Método de Sintonia</label>
+      <select id="select-tuning">
+        <option value="manual">Manual</option>
+        <option value="zn">Ziegler-Nichols</option>
+        <option value="tl">Tyreus-Luyben</option>
+        <option value="cc">Cohen-Coon</option>
+      </select>
+    </div>
+
+    <div id="pid-gains">
+      <div class="form-row-inline">
+        <div class="form-field">
+          <label for="input-kp">Kp</label>
+          <input type="number" id="input-kp" value="0" min="0" step="0.1">
+        </div>
+        <div class="form-field">
+          <label for="input-ki">Ki</label>
+          <input type="number" id="input-ki" value="0" min="0" step="0.1">
+        </div>
+        <div class="form-field">
+          <label for="input-kd">Kd</label>
+          <input type="number" id="input-kd" value="0" min="0" step="0.01">
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-apply-pid">Aplicar Configuração</button>
+    </div>
+  </section>
+
+  <!-- ===== AUTO-TUNE ===== -->
+  <section class="card" id="autotune-panel">
+    <h2>Auto-Tune (Relay Feedback)</h2>
+
+    <div class="form-row-inline">
+      <div class="form-field">
+        <label for="input-relay">Amplitude Relay (%)</label>
+        <input type="number" id="input-relay" value="20" min="10" max="40" step="5">
+      </div>
+      <div class="form-field">
+        <label for="input-cycles">Ciclos</label>
+        <input type="number" id="input-cycles" value="3" min="2" max="8" step="1">
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-autotune">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        Executar Auto-Tune
+      </button>
+    </div>
+
+    <div class="progress-bar-container hidden" id="autotune-progress-container">
+      <div class="progress-bar" id="autotune-progress"></div>
+      <span class="progress-label" id="autotune-progress-label">0%</span>
+    </div>
+
+    <div class="result-box hidden" id="autotune-results">
+      <h3>Resultados do Auto-Tune</h3>
+      <div class="result-grid">
+        <div class="result-item">
+          <span class="result-label">Ku (ganho crítico)</span>
+          <span class="result-value" id="val-ku">--</span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Tu (período crítico)</span>
+          <span class="result-value" id="val-tu">--</span>
+        </div>
+      </div>
+      <div class="tuning-suggestions" id="tuning-suggestions"></div>
+    </div>
+  </section>
+
+  <!-- ===== MALHA ABERTA ===== -->
+  <section class="card" id="open-loop-panel">
+    <h2>Controle Manual (Malha Aberta)</h2>
+
+    <div class="form-row">
+      <label for="input-speed">Velocidade (PWM): <span id="speed-display">50</span>%</label>
+      <input type="range" id="input-speed" min="0" max="100" value="50">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-success" id="btn-forward">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+        Horário
+      </button>
+      <button class="btn btn-primary" id="btn-reverse">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+        Anti-horário
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== STATUS ===== -->
+  <section class="card" id="status-panel">
+    <h2>Status do Sistema</h2>
+    <div class="status-grid">
+      <div class="status-item">
+        <span class="status-label">RPM</span>
+        <span class="status-value" id="stat-rpm">0.0</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Pulsos</span>
+        <span class="status-value" id="stat-pulses">0</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">WiFi</span>
+        <span class="status-value" id="stat-rssi">-- dBm</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Heap Livre</span>
+        <span class="status-value" id="stat-heap">-- KB</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Uptime</span>
+        <span class="status-value" id="stat-uptime">00:00:00</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer>
+    <a href="/update" class="ota-link">Atualização OTA</a>
+    <p class="footer-text">LaRA — Laboratório de Robótica e Automação</p>
+  </footer>
+
+  <!-- ===== TOAST NOTIFICATIONS ===== -->
+  <div id="toast-container"></div>
+
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
