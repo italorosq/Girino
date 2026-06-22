@@ -504,6 +504,7 @@ class ChartManager {
             pointRadius: 0,
             tension: 0,
             fill: false,
+            spanGaps: false,
           },
         ],
       },
@@ -946,15 +947,14 @@ class UIController {
       if (!data) return;
 
       this.chartTime += CONFIG.POLL_INTERVAL / 1000;
-      const setpoint = this.api.simulator.pidEnabled || this.api.simulator.autotuneRunning
-        ? this.api.simulator.setpoint
-        : data.rpm; // Em malha aberta, setpoint acompanha
+      const pidActive = this.api.simulator.pidEnabled || this.api.simulator.autotuneRunning;
+      const setpoint = pidActive ? this.api.simulator.setpoint : null;
 
       this.chart.addPoint(this.chartTime, data.rpm, setpoint);
 
       // Atualizar status na tela
       this.els.statRpm.textContent = data.rpm.toFixed(1);
-      this.els.statSetpoint.textContent = setpoint.toFixed(0);
+      this.els.statSetpoint.textContent = pidActive ? setpoint.toFixed(0) : '--';
       this.els.statPulses.textContent = data.pulses;
     }, CONFIG.POLL_INTERVAL);
 
