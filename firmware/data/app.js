@@ -608,6 +608,20 @@ class ChartManager {
     this.chart.update();
   }
 
+  setSetpointVisible(visible) {
+    const ds = this.chart.data.datasets[1];
+    if (visible) {
+      ds.hidden = false;
+      this.chart.options.plugins.legend.labels.filter = undefined;
+    } else {
+      ds.hidden = true;
+      this.dataPoints.setpoint = [];
+      ds.data = [];
+      this.chart.options.plugins.legend.labels.filter = (item) => item.datasetIndex !== 1;
+    }
+    this.chart.update('none');
+  }
+
   exportCSV() {
     let csv = 'Tempo (s),Setpoint (RPM),Posicao Real (RPM)\n';
     for (let i = 0; i < this.dataPoints.time.length; i++) {
@@ -653,7 +667,6 @@ class UIController {
       btnStart: document.getElementById('btn-start'),
       btnPause: document.getElementById('btn-pause'),
       btnStop: document.getElementById('btn-stop'),
-      runStatus: document.getElementById('run-status'),
 
       // PID
       inputSetpoint: document.getElementById('input-setpoint'),
@@ -685,6 +698,7 @@ class UIController {
       // Status
       statRpm: document.getElementById('stat-rpm'),
       statSetpoint: document.getElementById('stat-setpoint'),
+      setpointStat: document.getElementById('setpoint-stat'),
       statPulses: document.getElementById('stat-pulses'),
       statRssi: document.getElementById('stat-rssi'),
       statHeap: document.getElementById('stat-heap'),
@@ -695,8 +709,8 @@ class UIController {
 
       // Panels
       modePanel: document.getElementById('mode-panel'),
-      pidPanel: document.getElementById('pid-panel'),
-      autotunePanel: document.getElementById('autotune-panel'),
+      pidContent: document.getElementById('pid-content'),
+      autotuneContent: document.getElementById('autotune-content'),
       openLoopContent: document.getElementById('open-loop-content'),
       setpointContent: document.getElementById('setpoint-content'),
     };
@@ -737,25 +751,32 @@ class UIController {
   _setMode(mode) {
     this.mode = mode;
 
-    // Esconder todos os painéis de modo
-    this.els.pidPanel.classList.add('hidden');
-    this.els.autotunePanel.classList.add('hidden');
+    // Esconder todos os conteúdos de modo
     this.els.openLoopContent.classList.add('hidden');
     this.els.setpointContent.classList.add('hidden');
+    this.els.pidContent.classList.add('hidden');
+    this.els.autotuneContent.classList.add('hidden');
 
-    // Mostrar painel correto
+    // Mostrar conteúdo correto e controlar gráfico
     switch (mode) {
       case 'open-loop':
         this.els.openLoopContent.classList.remove('hidden');
+        this.chart.setSetpointVisible(false);
+        this.els.setpointStat.classList.add('hidden');
         this.els.btnStart.disabled = false;
         break;
       case 'pid':
-        this.els.pidPanel.classList.remove('hidden');
         this.els.setpointContent.classList.remove('hidden');
+        this.els.pidContent.classList.remove('hidden');
+        this.chart.setSetpointVisible(true);
+        this.els.setpointStat.classList.remove('hidden');
         this.els.btnStart.disabled = false;
         break;
       case 'autotune':
-        this.els.autotunePanel.classList.remove('hidden');
+        this.els.setpointContent.classList.remove('hidden');
+        this.els.autotuneContent.classList.remove('hidden');
+        this.chart.setSetpointVisible(true);
+        this.els.setpointStat.classList.remove('hidden');
         this.els.btnStart.disabled = true;
         break;
     }
@@ -772,14 +793,12 @@ class UIController {
       await this.api.startPid();
       this.running = true;
       this.paused = false;
-      this._updateRunStatus('running', 'PID ativo');
       this._toast('PID iniciado', 'success');
     } else if (this.mode === 'open-loop') {
       const speed = parseInt(this.els.inputSpeed.value);
       this.api.motorCommand('forward', speed);
       this.running = true;
       this.paused = false;
-      this._updateRunStatus('running', `PWM ${speed}%`);
       this._toast('Motor ligado', 'success');
     }
     this._updateButtons();
@@ -791,22 +810,18 @@ class UIController {
     if (this.mode === 'pid') {
       if (this.paused) {
         await this.api.startPid();
-        this._updateRunStatus('running', 'PID ativo');
         this._toast('PID retomado', 'info');
       } else {
         await this.api.stopPid();
-        this._updateRunStatus('paused', 'PID pausado');
         this._toast('PID pausado', 'warning');
       }
     } else {
       if (this.paused) {
         const speed = parseInt(this.els.inputSpeed.value);
         this.api.motorCommand('forward', speed);
-        this._updateRunStatus('running', `PWM ${speed}%`);
         this._toast('Motor retomado', 'info');
       } else {
         this.api.motorCommand('stop', 0);
-        this._updateRunStatus('paused', 'Pausado');
         this._toast('Motor pausado', 'warning');
       }
     }
@@ -821,7 +836,6 @@ class UIController {
     this.api.motorCommand('stop', 0);
     this.running = false;
     this.paused = false;
-    this._updateRunStatus('idle', 'Parado');
     this._toast('Parado', 'info');
     this._updateButtons();
   }
@@ -920,18 +934,9 @@ class UIController {
     this.api.motorCommand(direction, speed);
     this.running = true;
     this.paused = false;
-    this._updateRunStatus('running', `${direction === 'forward' ? 'Horário' : 'Anti-horário'} ${speed}%`);
     this._updateButtons();
     this.chart.clear();
     this.chartTime = 0;
-  }
-
-  _updateRunStatus(state, text) {
-    const el = this.els.runStatus;
-    el.textContent = text;
-    el.className = 'status-badge';
-    if (state === 'running') el.classList.add('running');
-    else if (state === 'paused') el.classList.add('paused');
   }
 
   _updateButtons() {
