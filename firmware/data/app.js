@@ -649,6 +649,7 @@ class UIController {
     this.running = false;
     this.paused = false;
     this.chartTime = 0;
+    this.setpointConfigured = false;
 
     this._cacheElements();
     this._bindEvents();
@@ -763,6 +764,7 @@ class UIController {
         this.els.openLoopContent.classList.remove('hidden');
         this.chart.setSetpointVisible(false);
         this.els.setpointStat.classList.add('hidden');
+        this.setpointConfigured = false;
         this.els.btnStart.disabled = false;
         break;
       case 'pid':
@@ -846,6 +848,9 @@ class UIController {
     const kd = parseFloat(this.els.inputKd.value) || 0;
     const setpoint = parseFloat(this.els.inputSetpoint.value) || 50;
     await this.api.setPidConfig(kp, ki, kd, setpoint);
+    this.setpointConfigured = true;
+    this.els.statSetpoint.textContent = setpoint.toFixed(0);
+    this._toast(`PID configurado: Kp=${kp} Ki=${ki} Kd=${kd} SP=${setpoint}`, 'info');
   }
 
   _onTuningChange() {
@@ -953,13 +958,14 @@ class UIController {
 
       this.chartTime += CONFIG.POLL_INTERVAL / 1000;
       const pidActive = this.api.simulator.pidEnabled || this.api.simulator.autotuneRunning;
-      const setpoint = pidActive ? this.api.simulator.setpoint : null;
+      const showSetpoint = this.setpointConfigured && (this.mode === 'pid' || this.mode === 'autotune');
+      const setpoint = showSetpoint ? this.api.simulator.setpoint : null;
 
       this.chart.addPoint(this.chartTime, data.rpm, setpoint);
 
       // Atualizar status na tela
       this.els.statRpm.textContent = data.rpm.toFixed(1);
-      this.els.statSetpoint.textContent = pidActive ? setpoint.toFixed(0) : '--';
+      this.els.statSetpoint.textContent = showSetpoint ? setpoint.toFixed(0) : '--';
       this.els.statPulses.textContent = data.pulses;
     }, CONFIG.POLL_INTERVAL);
 
