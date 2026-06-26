@@ -22,7 +22,7 @@ static float currentRPM = 0.0;
  * ISR: chamada a cada transição do canal A do encoder.
  * Lê o canal B para determinar a direção de rotação.
  */
-void ICACHE_RAM_ATTR encoderISR() {
+void IRAM_ATTR encoderISR() {
     int bState = digitalRead(ENCODER_B_PIN);
     if (bState == HIGH) {
         pulseCount++;   // Sentido horário
