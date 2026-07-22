@@ -11,6 +11,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ElegantOTA.h>
+#include <LittleFS.h>
 
 #include "pins.h"
 #include "config.h"
@@ -23,7 +24,6 @@ ESP8266WebServer server(80);
 // --- Protótipos ---
 void setupWiFi();
 void setupWebServer();
-void handleRoot();
 void handleMotorCommand();
 void handleEncoderRead();
 void handleStatus();
@@ -43,6 +43,13 @@ void setup() {
 
     // Conectar Wi-Fi
     setupWiFi();
+
+    // Inicializar filesystem
+    if (!LittleFS.begin()) {
+        Serial.println("[LittleFS] Falha ao montar filesystem");
+    } else {
+        Serial.println("[LittleFS] Filesystem montado");
+    }
 
     // Configurar servidor web + OTA
     setupWebServer();
@@ -87,8 +94,20 @@ void setupWiFi() {
 }
 
 void setupWebServer() {
-    // Página principal
-    server.on("/", HTTP_GET, handleRoot);
+    // Arquivos estáticos do LittleFS
+    server.serveStatic("/style.css", LittleFS, "/style.css");
+    server.serveStatic("/app.js", LittleFS, "/app.js");
+
+    // Página principal — servir index.html do LittleFS
+    server.on("/", HTTP_GET, []() {
+        File file = LittleFS.open("/index.html", "r");
+        if (file) {
+            server.streamFile(file, "text/html");
+            file.close();
+        } else {
+            server.send(404, "text/plain", "index.html nao encontrado no LittleFS");
+        }
+    });
 
     // API: Comando do motor
     server.on("/api/motor", HTTP_POST, handleMotorCommand);
@@ -105,83 +124,6 @@ void setupWebServer() {
 
     server.begin();
     Serial.println("Servidor HTTP + OTA iniciado");
-}
-
-void handleRoot() {
-    String html = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Girino — Controle de Motor</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
-        h1 { color: #333; }
-        .control { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
-        label { display: block; margin: 10px 0 5px; font-weight: bold; }
-        input[type="range"] { width: 100%; }
-        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        .btn-on { background: #4CAF50; color: white; }
-        .btn-off { background: #f44336; color: white; }
-        .status { background: #f5f5f5; padding: 15px; border-radius: 8px; font-family: monospace; }
-    </style>
-</head>
-<body>
-    <h1>🔧 Girino</h1>
-    <p>Plataforma didática — Controle de Motor DC</p>
-
-    <div class="control">
-        <h3>Controle do Motor</h3>
-        <label>Velocidade (PWM): <span id="speedVal">0</span>%</label>
-        <input type="range" id="speed" min="0" max="100" value="0">
-        <br>
-        <button class="btn-on" onclick="motorCmd('forward')">▶ Sentido Horário</button>
-        <button class="btn-off" onclick="motorCmd('reverse')">◀ Sentido Anti-horário</button>
-        <button class="btn-off" onclick="motorCmd('stop')">⏹ Parar</button>
-    </div>
-
-    <div class="status">
-        <h3>Encoder</h3>
-        <p>Pulsos: <span id="pulses">0</span></p>
-        <p>Velocidade (RPM): <span id="rpm">0</span></p>
-        <p><small>Atualiza a cada 500ms</small></p>
-    </div>
-
-    <p><a href="/update">🔄 Atualização OTA</a></p>
-
-    <script>
-        const speedSlider = document.getElementById('speed');
-        const speedVal = document.getElementById('speedVal');
-
-        speedSlider.oninput = () => { speedVal.textContent = speedSlider.value; };
-
-        function motorCmd(dir) {
-            fetch('/api/motor', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'direction=' + dir + '&speed=' + speedSlider.value
-            }).then(r => r.json()).then(d => console.log(d));
-        }
-
-        setInterval(() => {
-            fetch('/api/encoder').then(r => r.json()).then(d => {
-                document.getElementById('pulses').textContent = d.pulses;
-                document.getElementById('rpm').textContent = d.rpm.toFixed(1);
-            });
-        }, 500);
-
-        setInterval(() => {
-            fetch('/api/status').then(r => r.json()).then(d => {
-                // Atualizar status se necessário
-            });
-        }, 2000);
-    </script>
-</body>
-</html>
-)rawliteral";
-
-    server.send(200, "text/html", html);
 }
 
 void handleMotorCommand() {
