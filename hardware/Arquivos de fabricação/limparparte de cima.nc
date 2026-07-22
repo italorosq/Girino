@@ -4,7 +4,7 @@
 (Type: G-code from Geometry)
 (Units: MM)
 
-(Created on Friday, 19 June 2026 at 12:30)
+(Created on Tuesday, 23 June 2026 at 10:22)
 
 (This preprocessor is used with a motion controller loaded with GRBL firmware.)
 (It is configured to be compatible with almost any version of GRBL firmware.)
@@ -14,7 +14,7 @@
 (Feedrate_Z: 30.0 mm/min)
 (Feedrate rapids 1500.0 mm/min)
 
-(Z_Cut: 0.0 mm)
+(Z_Cut: -0.21 mm)
 (Z_Move: 5.0 mm)
 (Z Start: None mm)
 (Z End: 15.0 mm)
@@ -47,7 +47,7 @@ M03 S10000.0
 G01 F120.00
 G00 X1.5558 Y1.0500
 G01 F30.00
-G01 Z0.0000
+G01 Z-0.2100
 G01 F120.00
 G01 X1.2920 Y1.3484 F120.00
 G01 X1.0500 Y1.6360 F120.00
@@ -491,7 +491,7 @@ G01 X1.0500 Y62.0000 F120.00
 G00 Z5.0000
 G00 X23.6160 Y62.0000
 G01 F30.00
-G01 Z0.0000
+G01 Z-0.2100
 G01 F120.00
 G01 X22.9020 Y61.6939 F120.00
 G01 X22.1657 Y61.3567 F120.00
@@ -1412,7 +1412,7 @@ G01 X70.9942 Y1.0500 F120.00
 G00 Z5.0000
 G00 X65.6750 Y31.5250
 G01 F30.00
-G01 Z0.0000
+G01 Z-0.2100
 G01 F120.00
 G01 X65.6662 Y30.8035 F120.00
 G01 X65.6396 Y30.0824 F120.00
@@ -7723,7 +7723,7 @@ G01 X36.8750 Y31.5250 F120.00
 G00 Z5.0000
 G00 X71.5000 Y35.0359
 G01 F30.00
-G01 Z0.0000
+G01 Z-0.2100
 G01 F120.00
 G01 X71.4088 Y35.8584 F120.00
 G01 X71.2919 Y36.7193 F120.00
