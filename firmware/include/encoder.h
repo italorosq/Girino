@@ -14,6 +14,9 @@
 /**
  * Inicializa os pinos do encoder e configura interrupções.
  * Usa interrupções no canal A para contagem de pulsos.
+ *
+ * ATENÇÃO: o LPD3806 tem saída em coletor aberto — a leitura exige
+ * resistores de pull-up externos de 4.7k para 3.3V (não 5V).
  */
 void encoderInit();
 
@@ -22,6 +25,14 @@ void encoderInit();
  * Calcula RPM a cada ENCODER_SAMPLE_MS milissegundos.
  */
 void encoderUpdate();
+
+/**
+ * Feedback didático do encoder (chamar no loop):
+ *  - LED onboard pisca enquanto chegam pulsos (conferência da fiação)
+ *  - Telemetria periódica no serial: pulsos, pulsos/s, RPM e ângulo
+ *    (intervalo definido por ENCODER_DEBUG_INTERVAL_MS em config.h)
+ */
+void encoderUpdateFeedback();
 
 /**
  * Retorna o número total de pulsos desde a inicialização.
@@ -36,7 +47,15 @@ long encoderGetPulses();
 float encoderGetRPM();
 
 /**
- * Reseta a contagem de pulsos para zero.
+ * Retorna o ângulo acumulado em graus (com sinal).
+ * Positivo = sentido horário, negativo = anti-horário.
+ * A origem (0°) é definida por encoderReset().
+ * @return Ângulo em graus
+ */
+float encoderGetAngle();
+
+/**
+ * Reseta a contagem de pulsos para zero (define a origem do ângulo).
  */
 void encoderReset();
 

@@ -39,4 +39,21 @@ int motorGetSpeed();
  */
 int motorGetDirection();
 
+/**
+ * @return true se a fiação motor/encoder foi detectada invertida
+ *         (e está sendo corrigida em software).
+ */
+bool motorDirInverted();
+
+/**
+ * Detecta o sentido físico da fiação: aplica um pulso curto de teste no
+ * primeiro movimento após o boot e observa a contagem do encoder. Se a
+ * contagem for negativa, o mapa de direção é invertido em software —
+ * assim FORWARD ("horário") sempre aumenta o ângulo medido, qualquer
+ * que seja a fiação do motor ou dos canais A/B do encoder.
+ *
+ * É chamada automaticamente pelo primeiro motorSetSpeed(>0).
+ */
+void motorCalibrateDirection();
+
 #endif // MOTOR_CONTROL_H
