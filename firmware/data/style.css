@@ -213,7 +213,8 @@ header {
 .chart-footer {
   display: flex;
   align-items: center;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 6px 14px;
   margin-top: 10px;
 }
 
@@ -331,6 +332,21 @@ header {
   border-color: var(--primary);
   background: var(--primary);
   color: #fff;
+}
+
+/* --- Textos de apoio (descrição de modo / dicas) --- */
+.mode-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 10px;
+  line-height: 1.4;
+}
+
+.hint-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+  line-height: 1.4;
 }
 
 /* --- Form elements --- */
@@ -589,6 +605,11 @@ input[type="range"]::-moz-range-thumb {
   color: var(--text);
   font-family: 'SF Mono', 'Fira Code', monospace;
   margin-top: 2px;
+}
+
+/* Alerta: motor acionado mas encoder sem sinal (checar fiação) */
+.status-value.warn {
+  color: var(--danger);
 }
 
 /* --- Footer --- */

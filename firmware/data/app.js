@@ -13,11 +13,27 @@
 // ============================================================
 
 const CONFIG = {
-  USE_MOCK: true,             // true = simulador, false = hardware real
+  USE_MOCK: false,            // true = simulador, false = hardware real
   POLL_INTERVAL: 100,         // ms (encoder)
   STATUS_INTERVAL: 2000,      // ms (status do sistema)
   CHART_MAX_POINTS: 300,      // ~30s a 100ms
   CHART_UPDATE_INTERVAL: 100, // ms
+};
+
+// Nomes amigáveis dos modos do firmware (campo "mode" da /api/status)
+const MODE_NAMES = {
+  'open-loop': 'Malha Aberta',
+  pid: 'PID',
+  position: 'Posição',
+  autotune: 'Auto-Tune',
+};
+
+// Explicação curta de cada modo (mostrada abaixo dos radios)
+const MODE_DESCRIPTIONS = {
+  'open-loop': 'PWM manual direto: o motor gira em velocidade fixa, sem realimentação.',
+  pid: 'Malha fechada: regula a velocidade (RPM) no setpoint usando o PID.',
+  position: 'Malha fechada: vai até o ângulo alvo e tenta mantê-lo.',
+  autotune: 'Identifica a planta (relé) e sugere ganhos para o PID de velocidade.',
 };
 
 // ============================================================
@@ -335,6 +351,12 @@ class APIClient {
     this.simulator = simulator;
     this.connected = true;
     this.failCount = 0;
+    // Estado local (espelhado do firmware) para a UI
+    this.setpoint = 50;
+    this.pidActive = false;
+    this.autotuneActive = false;
+    this.posActive = false;
+    this.posTarget = 0;
   }
 
   async _fetch(url, options = {}) {
@@ -363,6 +385,7 @@ class APIClient {
   }
 
   async setPidConfig(kp, ki, kd, setpoint) {
+    this.setpoint = setpoint;
     if (CONFIG.USE_MOCK) {
       this.simulator.kp = kp;
       this.simulator.ki = ki;
@@ -380,29 +403,101 @@ class APIClient {
   async startPid() {
     if (CONFIG.USE_MOCK) {
       this.simulator.startPID();
+      this.pidActive = true;
+      this.autotuneActive = false;
       return { ok: true };
     }
-    return await this._fetch('/api/pid/start', { method: 'POST' });
+    const res = await this._fetch('/api/pid/start', { method: 'POST' });
+    if (res) {
+      this.pidActive = true;
+      this.autotuneActive = false;
+    }
+    return res;
   }
 
   async stopPid() {
     if (CONFIG.USE_MOCK) {
       this.simulator.stopPID();
+      this.pidActive = false;
       return { ok: true };
     }
-    return await this._fetch('/api/pid/stop', { method: 'POST' });
+    const res = await this._fetch('/api/pid/stop', { method: 'POST' });
+    if (res) this.pidActive = false;
+    return res;
   }
 
-  async startAutotune(relayAmplitude, cycles) {
+  // --- Controle de posição (ângulo) ---
+
+  async setPosConfig(kp, ki, kd, target) {
+    this.posTarget = target;
     if (CONFIG.USE_MOCK) {
-      this.simulator.startAutotune(relayAmplitude, cycles);
+      this.simulator.kp = kp;
+      this.simulator.ki = ki;
+      this.simulator.kd = kd;
       return { ok: true };
     }
-    return await this._fetch('/api/pid/autotune', {
+    return await this._fetch('/api/position/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `relay_amplitude=${relayAmplitude}&cycles=${cycles}`,
+      body: `kp=${kp}&ki=${ki}&kd=${kd}&target=${target}`,
     });
+  }
+
+  async startPos(target) {
+    if (target !== undefined) this.posTarget = target;
+    if (CONFIG.USE_MOCK) {
+      this.posActive = true;
+      this.pidActive = false;
+      return { ok: true };
+    }
+    const res = await this._fetch('/api/position/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `target=${this.posTarget}`,
+    });
+    if (res) {
+      this.posActive = true;
+      this.pidActive = false;
+      this.autotuneActive = false;
+    }
+    return res;
+  }
+
+  async stopPos() {
+    if (CONFIG.USE_MOCK) {
+      this.posActive = false;
+      return { ok: true };
+    }
+    const res = await this._fetch('/api/position/stop', { method: 'POST' });
+    if (res) this.posActive = false;
+    return res;
+  }
+
+  async zeroPos() {
+    if (CONFIG.USE_MOCK) return { ok: true };
+    const res = await this._fetch('/api/position/zero', { method: 'POST' });
+    if (res) this.posActive = false;
+    return res;
+  }
+
+  async startAutotune(relayAmplitude, cycles, setpoint, bias) {
+    if (setpoint !== undefined) this.setpoint = setpoint;
+    if (CONFIG.USE_MOCK) {
+      this.simulator.startAutotune(relayAmplitude, cycles);
+      this.autotuneActive = true;
+      this.pidActive = false;
+      return { ok: true };
+    }
+    const res = await this._fetch('/api/pid/autotune', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `relay_amplitude=${relayAmplitude}&cycles=${cycles}&setpoint=${this.setpoint}&bias=${bias}`,
+    });
+    if (res) {
+      this.autotuneActive = true;
+      this.pidActive = false;
+    }
+    return res;
   }
 
   async getAutotuneStatus() {
@@ -441,6 +536,11 @@ class APIClient {
     if (CONFIG.USE_MOCK) {
       this.simulator.motorCommand(direction, speed);
       return { ok: true };
+    }
+    // Comando manual desliga PID/autotune no firmware
+    if (direction === 'stop') {
+      this.pidActive = false;
+      this.autotuneActive = false;
     }
     return await this._fetch('/api/motor', {
       method: 'POST',
@@ -608,6 +708,18 @@ class ChartManager {
     this.chart.update();
   }
 
+  /**
+   * Ajusta rótulos e eixo para a grandeza medida:
+   * 'rpm' (velocidade) ou 'deg' (posição/ângulo).
+   */
+  setUnits(unit) {
+    const isDeg = unit === 'deg';
+    this.chart.data.datasets[0].label = isDeg ? 'Ângulo Real (°)' : 'Posição Real (RPM)';
+    this.chart.data.datasets[1].label = isDeg ? 'Alvo (°)' : 'Setpoint (RPM)';
+    this.chart.options.scales.y.title.text = isDeg ? 'Ângulo (°)' : 'RPM';
+    this.chart.update('none');
+  }
+
   setSetpointVisible(visible) {
     const ds = this.chart.data.datasets[1];
     if (visible) {
@@ -650,6 +762,10 @@ class UIController {
     this.paused = false;
     this.chartTime = 0;
     this.setpointConfigured = false;
+    this.posConfigured = false;
+    this._autotunePoll = null;
+    this._lastPulses = null;
+    this._lastPulseMs = 0;
 
     this._cacheElements();
     this._bindEvents();
@@ -676,10 +792,24 @@ class UIController {
       inputKi: document.getElementById('input-ki'),
       inputKd: document.getElementById('input-kd'),
       btnApplyPid: document.getElementById('btn-apply-pid'),
+      btnRunPid: document.getElementById('btn-run-pid'),
       pidGains: document.getElementById('pid-gains'),
+
+      // Posição (ângulo)
+      inputAngle: document.getElementById('input-angle'),
+      inputPkp: document.getElementById('input-pkp'),
+      inputPki: document.getElementById('input-pki'),
+      inputPkd: document.getElementById('input-pkd'),
+      btnApplyPos: document.getElementById('btn-apply-pos'),
+      btnRunPos: document.getElementById('btn-run-pos'),
+      btnZero: document.getElementById('btn-zero'),
+
+      // Descrição do modo
+      modeDesc: document.getElementById('mode-desc'),
 
       // Auto-tune
       inputRelay: document.getElementById('input-relay'),
+      inputBias: document.getElementById('input-bias'),
       inputCycles: document.getElementById('input-cycles'),
       btnAutotune: document.getElementById('btn-autotune'),
       progressContainer: document.getElementById('autotune-progress-container'),
@@ -698,19 +828,26 @@ class UIController {
 
       // Status
       statRpm: document.getElementById('stat-rpm'),
+      statAngle: document.getElementById('stat-angle'),
       statSetpoint: document.getElementById('stat-setpoint'),
       setpointStat: document.getElementById('setpoint-stat'),
       statPulses: document.getElementById('stat-pulses'),
-      statRssi: document.getElementById('stat-rssi'),
+      statMode: document.getElementById('stat-mode'),
+      statClients: document.getElementById('stat-clients'),
+      statEncRate: document.getElementById('stat-enc-rate'),
+      statSsid: document.getElementById('stat-ssid'),
+      statIp: document.getElementById('stat-ip'),
       statHeap: document.getElementById('stat-heap'),
       statUptime: document.getElementById('stat-uptime'),
 
       // Chart
       btnExportCsv: document.getElementById('btn-export-csv'),
+      btnExportExp: document.getElementById('btn-export-exp'),
 
       // Panels
       modePanel: document.getElementById('mode-panel'),
       pidContent: document.getElementById('pid-content'),
+      positionContent: document.getElementById('position-content'),
       autotuneContent: document.getElementById('autotune-content'),
       openLoopContent: document.getElementById('open-loop-content'),
       setpointContent: document.getElementById('setpoint-content'),
@@ -732,6 +869,14 @@ class UIController {
     this.els.btnApplyPid.addEventListener('click', () => this._onApplyPid());
     this.els.selectTuning.addEventListener('change', () => this._onTuningChange());
 
+    // Posição (ângulo)
+    this.els.btnApplyPos.addEventListener('click', () => this._onApplyPos());
+    this.els.btnZero.addEventListener('click', () => this._onZero());
+
+    // Botões Iniciar/Parar dentro dos painéis (PID e Posição)
+    this.els.btnRunPid.addEventListener('click', () => this._onRunToggle());
+    this.els.btnRunPos.addEventListener('click', () => this._onRunToggle());
+
     // Auto-tune
     this.els.btnAutotune.addEventListener('click', () => this._onAutotune());
 
@@ -747,21 +892,30 @@ class UIController {
       this.chart.exportCSV();
       this._toast('Dados exportados como CSV', 'success');
     });
+    this.els.btnExportExp.addEventListener('click', () => this._onExportExperiment());
   }
 
   _setMode(mode) {
+    // Trocar de modo cancela qualquer experimento em andamento no firmware
+    if (this.mode !== mode &&
+        (this.running || this.api.pidActive || this.api.autotuneActive || this.api.posActive)) {
+      this._cancelExperiment();
+    }
+
     this.mode = mode;
 
     // Esconder todos os conteúdos de modo
     this.els.openLoopContent.classList.add('hidden');
     this.els.setpointContent.classList.add('hidden');
     this.els.pidContent.classList.add('hidden');
+    this.els.positionContent.classList.add('hidden');
     this.els.autotuneContent.classList.add('hidden');
 
-    // Mostrar conteúdo correto e controlar gráfico
+    // Mostrar conteúdo correto e configurar o gráfico (RPM ou graus)
     switch (mode) {
       case 'open-loop':
         this.els.openLoopContent.classList.remove('hidden');
+        this.chart.setUnits('rpm');
         this.chart.setSetpointVisible(false);
         this.els.setpointStat.classList.add('hidden');
         this.setpointConfigured = false;
@@ -770,6 +924,14 @@ class UIController {
       case 'pid':
         this.els.setpointContent.classList.remove('hidden');
         this.els.pidContent.classList.remove('hidden');
+        this.chart.setUnits('rpm');
+        this.chart.setSetpointVisible(true);
+        this.els.setpointStat.classList.remove('hidden');
+        this.els.btnStart.disabled = false;
+        break;
+      case 'position':
+        this.els.positionContent.classList.remove('hidden');
+        this.chart.setUnits('deg');
         this.chart.setSetpointVisible(true);
         this.els.setpointStat.classList.remove('hidden');
         this.els.btnStart.disabled = false;
@@ -777,16 +939,56 @@ class UIController {
       case 'autotune':
         this.els.setpointContent.classList.remove('hidden');
         this.els.autotuneContent.classList.remove('hidden');
+        this.chart.setUnits('rpm');
         this.chart.setSetpointVisible(true);
         this.els.setpointStat.classList.remove('hidden');
         this.els.btnStart.disabled = true;
         break;
     }
 
+    // Reinicia o gráfico ao trocar de grandeza/modo
+    this.chart.clear();
+    this.chartTime = 0;
+    this._updateButtons();
+
+    // Descrição do modo selecionado
+    this.els.modeDesc.textContent = MODE_DESCRIPTIONS[mode] || '';
+
     // Atualizar radio visual
     document.querySelectorAll('input[name="mode"]').forEach((r) => {
       r.checked = r.value === mode;
     });
+  }
+
+  /**
+   * Cancela o experimento em andamento no firmware (PID, posição ou
+   * auto-tune). Usado ao trocar de modo ou pelo botão Parar.
+   */
+  _cancelExperiment() {
+    if (this._autotunePoll) {
+      clearInterval(this._autotunePoll);
+      this._autotunePoll = null;
+    }
+    this.api.pidActive = false;
+    this.api.autotuneActive = false;
+    this.api.posActive = false;
+    this.els.btnAutotune.disabled = false;
+    this.els.progressContainer.classList.add('hidden');
+    this.api.motorCommand('stop', 0); // firmware cancela todos os modos
+    this.running = false;
+    this.paused = false;
+    this._updateButtons();
+  }
+
+  /**
+   * Alterna Iniciar/Parar pelo botão dentro do painel do modo ativo.
+   */
+  _onRunToggle() {
+    if (this.running) {
+      this._onStop();
+    } else {
+      this._onStart();
+    }
   }
 
   async _onStart() {
@@ -796,6 +998,17 @@ class UIController {
       this.running = true;
       this.paused = false;
       this._toast('PID iniciado', 'success');
+    } else if (this.mode === 'position') {
+      await this._onApplyPos();
+      const target = parseFloat(this.els.inputAngle.value) || 0;
+      const res = await this.api.startPos(target);
+      if (!res) {
+        this._toast('Falha ao iniciar controle de posição', 'error');
+        return;
+      }
+      this.running = true;
+      this.paused = false;
+      this._toast('Controle de posição iniciado', 'success');
     } else if (this.mode === 'open-loop') {
       const speed = parseInt(this.els.inputSpeed.value);
       this.api.motorCommand('forward', speed);
@@ -817,6 +1030,15 @@ class UIController {
         await this.api.stopPid();
         this._toast('PID pausado', 'warning');
       }
+    } else if (this.mode === 'position') {
+      if (this.paused) {
+        await this.api.startPos(this.api.posTarget);
+        this._toast('Posição retomada', 'info');
+      } else {
+        await this.api.stopPos();
+        this.api.motorCommand('stop', 0);
+        this._toast('Posição pausada', 'warning');
+      }
     } else {
       if (this.paused) {
         const speed = parseInt(this.els.inputSpeed.value);
@@ -834,23 +1056,71 @@ class UIController {
   async _onStop() {
     if (this.mode === 'pid') {
       await this.api.stopPid();
+    } else if (this.mode === 'position') {
+      await this.api.stopPos();
     }
-    this.api.motorCommand('stop', 0);
-    this.running = false;
-    this.paused = false;
+    this._cancelExperiment();
     this._toast('Parado', 'info');
-    this._updateButtons();
   }
 
   async _onApplyPid() {
     const kp = parseFloat(this.els.inputKp.value) || 0;
     const ki = parseFloat(this.els.inputKi.value) || 0;
     const kd = parseFloat(this.els.inputKd.value) || 0;
-    const setpoint = parseFloat(this.els.inputSetpoint.value) || 50;
+    const setpoint = parseFloat(this.els.inputSetpoint.value) || 1000;
+    if (kp === 0 && ki === 0 && kd === 0) {
+      this._toast('Aviso: ganhos zerados — o motor não vai se mover', 'warning');
+    }
     await this.api.setPidConfig(kp, ki, kd, setpoint);
     this.setpointConfigured = true;
     this.els.statSetpoint.textContent = setpoint.toFixed(0);
     this._toast(`PID configurado: Kp=${kp} Ki=${ki} Kd=${kd} SP=${setpoint}`, 'info');
+  }
+
+  async _onApplyPos() {
+    const kp = parseFloat(this.els.inputPkp.value) || 0;
+    const ki = parseFloat(this.els.inputPki.value) || 0;
+    const kd = parseFloat(this.els.inputPkd.value) || 0;
+    const target = parseFloat(this.els.inputAngle.value) || 0;
+    await this.api.setPosConfig(kp, ki, kd, target);
+    this.posConfigured = true;
+    this.els.statSetpoint.textContent = `${target.toFixed(0)}°`;
+    this._toast(`Posição: Kp=${kp} Ki=${ki} Kd=${kd} Alvo=${target}°`, 'info');
+  }
+
+  async _onZero() {
+    const res = await this.api.zeroPos();
+    if (!res) {
+      this._toast('Falha ao zerar posição', 'error');
+      return;
+    }
+    this.running = false;
+    this.paused = false;
+    this.posConfigured = true;
+    this.els.statAngle.textContent = '0.0°';
+    this._updateButtons();
+    this._toast('Posição atual definida como 0°', 'success');
+  }
+
+  async _onExportExperiment() {
+    const data = await this.api.getPidResponse();
+    if (!data || !data.data || data.data.length === 0) {
+      this._toast('Nenhum experimento gravado no ESP ainda', 'warning');
+      return;
+    }
+    const unit = data.unit === 'deg' ? 'Angulo (graus)' : 'RPM';
+    let csv = `Tempo (s),Setpoint (${unit}),Medido (${unit})\n`;
+    for (const [t, sp, value] of data.data) {
+      csv += `${t},${sp},${value}\n`;
+    }
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `girino_experimento_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this._toast(`Experimento exportado (${data.data.length} amostras)`, 'success');
   }
 
   _onTuningChange() {
@@ -860,41 +1130,72 @@ class UIController {
     this.els.inputKi.disabled = !isManual;
     this.els.inputKd.disabled = !isManual;
 
-    if (!isManual && this.api.simulator.autotuneResults) {
-      const tuning = this.api.simulator.getTuning();
-      if (tuning && tuning[method]) {
-        this.els.inputKp.value = tuning[method].kp;
-        this.els.inputKi.value = tuning[method].ki;
-        this.els.inputKd.value = tuning[method].kd;
-      }
+    if (!isManual) {
+      // Preencher ganhos com a sugestão do auto-tune (firmware ou simulador).
+      // O firmware responde em minúsculas (zn/tl/cc); aceitamos ambos.
+      this.api.getTuning().then((tuning) => {
+        if (!tuning) return;
+        const gains = tuning[method] || tuning[method.toUpperCase()];
+        if (gains) {
+          this.els.inputKp.value = gains.kp;
+          this.els.inputKi.value = gains.ki;
+          this.els.inputKd.value = gains.kd;
+        }
+      });
     }
   }
 
   async _onAutotune() {
-    const relayAmp = parseInt(this.els.inputRelay.value) || 20;
+    const relayAmp = parseInt(this.els.inputRelay.value) || 18;
+    const bias = parseInt(this.els.inputBias.value) || 82;
     const cycles = parseInt(this.els.inputCycles.value) || 3;
+    const setpoint = parseFloat(this.els.inputSetpoint.value) || 1000;
 
     this.els.btnAutotune.disabled = true;
     this.els.progressContainer.classList.remove('hidden');
     this.els.autotuneResults.classList.add('hidden');
+    this.els.progressBar.style.width = '0%';
+    this.els.progressLabel.textContent = '0%';
 
-    await this.api.startAutotune(relayAmp, cycles);
+    const res = await this.api.startAutotune(relayAmp, cycles, setpoint, bias);
+    if (!res) {
+      this.els.btnAutotune.disabled = false;
+      this.els.progressContainer.classList.add('hidden');
+      this._toast('Falha ao iniciar Auto-Tune', 'error');
+      return;
+    }
+
+    this.running = true;
+    this.paused = false;
+    this._updateButtons();
     this._toast('Auto-Tune iniciado...', 'info');
     this.chart.clear();
     this.chartTime = 0;
 
-    // Polling do auto-tune
+    // Polling do status do auto-tune (200 ms)
     this._autotunePoll = setInterval(async () => {
       const status = await this.api.getAutotuneStatus();
+      if (!status) return; // sem resposta agora; tenta no próximo ciclo
 
       this.els.progressBar.style.width = `${status.progress}%`;
       this.els.progressLabel.textContent = `${Math.round(status.progress)}%`;
 
       if (status.status === 'done' && status.results) {
         clearInterval(this._autotunePoll);
+        this._autotunePoll = null;
+        this.running = false;
         this.els.btnAutotune.disabled = false;
+        this._updateButtons();
         this._showAutotuneResults(status.results);
         this._toast('Auto-Tune concluído!', 'success');
+      } else if (status.status === 'failed') {
+        clearInterval(this._autotunePoll);
+        this._autotunePoll = null;
+        this.running = false;
+        this.els.btnAutotune.disabled = false;
+        this.els.progressContainer.classList.add('hidden');
+        this._updateButtons();
+        this._toast('Auto-Tune falhou: oscilação insuficiente', 'error');
       }
     }, 200);
   }
@@ -945,9 +1246,23 @@ class UIController {
   }
 
   _updateButtons() {
-    this.els.btnStart.disabled = this.running && !this.paused;
-    this.els.btnPause.disabled = !this.running;
+    this.els.btnStart.disabled =
+      (this.running && !this.paused) || this.mode === 'autotune';
+    this.els.btnPause.disabled = !this.running || this.mode === 'autotune';
     this.els.btnStop.disabled = !this.running;
+
+    // Botões Iniciar/Parar dentro dos painéis ficam em sincronia
+    const pidStopped = !(this.mode === 'pid' && this.running);
+    const posStopped = !(this.mode === 'position' && this.running);
+    this.els.btnRunPid.textContent = pidStopped ? 'Iniciar' : 'Parar';
+    this.els.btnRunPos.textContent = posStopped ? 'Iniciar' : 'Parar';
+    this.els.btnRunPid.classList.toggle('btn-success', pidStopped);
+    this.els.btnRunPid.classList.toggle('btn-danger', !pidStopped);
+    this.els.btnRunPos.classList.toggle('btn-success', posStopped);
+    this.els.btnRunPos.classList.toggle('btn-danger', !posStopped);
+
+    // Zerar posição só faz sentido com o controle parado
+    this.els.btnZero.disabled = this.mode === 'position' && this.running;
   }
 
   _startPolling() {
@@ -957,16 +1272,47 @@ class UIController {
       if (!data) return;
 
       this.chartTime += CONFIG.POLL_INTERVAL / 1000;
-      const pidActive = this.api.simulator.pidEnabled || this.api.simulator.autotuneRunning;
-      const showSetpoint = this.setpointConfigured && (this.mode === 'pid' || this.mode === 'autotune');
-      const setpoint = showSetpoint ? this.api.simulator.setpoint : null;
 
-      this.chart.addPoint(this.chartTime, data.rpm, setpoint);
+      const isPos = this.mode === 'position';
+      const value = isPos ? (data.angle ?? 0) : data.rpm;
+
+      let showSetpoint = false;
+      let setpoint = null;
+      if (isPos) {
+        showSetpoint = this.posConfigured;
+        setpoint = this.api.posTarget;
+      } else if (this.mode === 'pid' || this.mode === 'autotune') {
+        showSetpoint = this.setpointConfigured;
+        setpoint = this.api.setpoint;
+      }
+
+      this.chart.addPoint(this.chartTime, value, setpoint);
 
       // Atualizar status na tela
       this.els.statRpm.textContent = data.rpm.toFixed(1);
-      this.els.statSetpoint.textContent = showSetpoint ? setpoint.toFixed(0) : '--';
+      this.els.statAngle.textContent = `${(data.angle ?? 0).toFixed(1)}°`;
+      this.els.statSetpoint.textContent = showSetpoint
+        ? (isPos ? `${setpoint.toFixed(0)}°` : setpoint.toFixed(0))
+        : '--';
       this.els.statPulses.textContent = data.pulses;
+
+      // Feedback de sinal do encoder: taxa de pulsos (p/s) e alerta
+      // quando o motor está acionado mas nenhum pulso chega.
+      const nowMs = performance.now();
+      if (this._lastPulses === null) {
+        this._lastPulses = data.pulses;
+        this._lastPulseMs = nowMs;
+      } else {
+        const dtS = (nowMs - this._lastPulseMs) / 1000;
+        if (dtS >= 0.5) {
+          const rate = (data.pulses - this._lastPulses) / dtS;
+          this._lastPulses = data.pulses;
+          this._lastPulseMs = nowMs;
+          this.els.statEncRate.textContent = `${rate.toFixed(0)} p/s`;
+          const noSignal = Math.abs(rate) < 1 && this.running;
+          this.els.statEncRate.classList.toggle('warn', noSignal);
+        }
+      }
     }, CONFIG.POLL_INTERVAL);
 
     // Polling do status do sistema (2s)
@@ -982,7 +1328,11 @@ class UIController {
       this.els.connLabel.textContent = CONFIG.USE_MOCK ? 'simulador' : 'conectado';
       this.els.version.textContent = `v${status.version}`;
 
-      this.els.statRssi.textContent = `${status.wifi_rssi} dBm`;
+      this.els.statMode.textContent = MODE_NAMES[status.mode] || status.mode || '--';
+      this.els.statClients.textContent =
+        status.stations !== undefined ? status.stations : '--';
+      this.els.statSsid.textContent = status.ssid || '--';
+      this.els.statIp.textContent = status.ip || '--';
       this.els.statHeap.textContent = `${(status.free_heap / 1024).toFixed(1)} KB`;
       this.els.statUptime.textContent = this._formatUptime(status.uptime_ms);
     }, CONFIG.STATUS_INTERVAL);
