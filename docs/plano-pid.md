@@ -257,11 +257,11 @@ O aluno aprende que:
 - [x] Levantamento bibliográfico (~70 referências)
 - [x] Análise comparativa dos trabalhos relacionados
 - [x] Planejamento dos métodos de sintonia
-- [ ] Implementar PID no firmware (pid.h + pid.cpp)
-- [ ] Implementar auto-tune (pid_autotune.h + pid.cpp)
-- [ ] Implementar regras de sintonia (ZN, TL, CC)
-- [ ] Adicionar endpoints API REST para PID
-- [ ] Interface web com gráfico de resposta ao degrau
+- [x] Implementar PID no firmware (pid.h + pid.cpp)
+- [x] Implementar auto-tune (pid_autotune.h + pid_autotune.cpp)
+- [x] Implementar regras de sintonia (ZN, TL, CC)
+- [x] Adicionar endpoints API REST para PID
+- [ ] Interface web com gráfico de resposta ao degrau (UI pronta; validar com hardware real)
 - [ ] Modelagem matemática do sistema motor+encoder
 - [ ] Testes experimentais: comparar ZN vs TL vs CC
 - [ ] Avaliação pedagógica com alunos

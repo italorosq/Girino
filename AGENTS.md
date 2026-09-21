@@ -19,8 +19,9 @@ O público-alvo são alunos de graduação. O código e a documentação devem s
 | Comando | Descrição |
 |---|---|
 | `cd firmware && pio run` | Compilar o firmware |
-| `cd firmware && pio run -t upload` | Compilar e gravar via USB |
-| `cd firmware && pio run -t upload --upload-port girino.local` | Gravar via OTA |
+| `cd firmware && pio run -t upload` | Compilar e gravar firmware via USB |
+| `cd firmware && pio run -t uploadfs` | Gravar interface web (LittleFS) — obrigatório na 1ª gravação e após mudar `data/` |
+| `cd firmware && pio run -t upload --upload-port 192.168.4.1` | Gravar firmware via OTA (PC conectado ao `GIRINO_AP`) |
 | `cd firmware && pio device monitor` | Monitor serial (115200 baud) |
 
 **Sempre execute `cd firmware && pio run` antes de commitar** para verificar que o firmware compila sem erros.
@@ -42,6 +43,8 @@ Girino/
 │   ├── lib/                # Bibliotecas locais
 │   ├── test/               # Testes unitários
 │   ├── platformio.ini      # Configuração PlatformIO
+│   ├── data/               # Interface web (LittleFS): index.html, app.js, style.css, chart.umd.min.js
+│   ├── scripts/            # Scripts de build (load_env.py — credenciais do .env)
 │   ├── .env.example        # Template de credenciais (NÃO commitar .env)
 │   └── README.md           # Docs do firmware
 ├── hardware/               # PCBs (KiCad)
@@ -137,9 +140,19 @@ Girino/
 | Endpoint | Método | Parâmetros | Descrição |
 |---|---|---|---|
 | `/` | GET | — | Interface web de controle |
-| `/api/motor` | POST | `direction` (forward/reverse/stop), `speed` (0-100) | Comando do motor |
-| `/api/encoder` | GET | — | Retorna `pulses` e `rpm` |
-| `/api/status` | GET | — | Versão, heap livre, uptime, RSSI WiFi |
+| `/api/motor` | POST | `direction` (forward/reverse/stop), `speed` (0-100) | Comando do motor (cancela PID/posição/auto-tune) |
+| `/api/encoder` | GET | — | Retorna `pulses`, `rpm` e `angle` (graus) |
+| `/api/status` | GET | — | Versão, heap, uptime, IP, clientes do AP e `mode` |
+| `/api/pid/config` | GET/POST | `kp`, `ki`, `kd`, `setpoint` (RPM) | PID de velocidade |
+| `/api/pid/start` `/api/pid/stop` | POST | — | Liga/desliga malha fechada de velocidade |
+| `/api/pid/autotune` | GET/POST | `relay_amplitude`, `bias`, `cycles`, `setpoint` | Auto-tune relay feedback (bias vence a zona morta do motor) |
+| `/api/pid/tuning` | GET | — | Ku, Tu e sugestões `zn`/`tl`/`cc` |
+| `/api/pid/tuning/apply` | POST | `method` (ZN/TL/CC) | Aplica regra de sintonia |
+| `/api/pid/response` | GET | — | Resposta ao degrau (tempo, setpoint, medida, `unit` rpm/deg) |
+| `/api/position/config` | GET/POST | `kp`, `ki`, `kd`, `target` (graus) | PID de posição (ângulo) |
+| `/api/position/start` | POST | `target` (opcional, graus) | Inicia controle de posição |
+| `/api/position/stop` | POST | — | Para controle de posição |
+| `/api/position/zero` | POST | — | Define a posição atual como 0° |
 | `/update` | GET/POST | — | Interface OTA (ElegantOTA) |
 
 ## Notas Importantes
@@ -147,6 +160,10 @@ Girino/
 - O ESP8266 tem limitações de GPIO — nem todos os pinos suportam interrupção
 - Para encoder em alta velocidade, considerar que o ESP8266 pode perder interrupções
 - O sinal do encoder LPD3806-600BM opera em 5V; o ESP8266 é 3.3V — pode ser necessário Schmitt trigger (CD40106) para condicionamento de sinal
+- O firmware tem **console serial** (115200): `help`, `status`, `enc`, `motor`, `pid`, `pos`, `autotune`, `tune` — permite controlar a bancada sem Wi-Fi
+- **Sentido motor/encoder é auto-calibrado** no primeiro movimento (pulso de teste): fiação invertida é corrigida em software; velocidade/auto-tune usam |RPM| e são imunes a polaridade
+- Bancada medida: zona morta do motor ~60% de duty (limita o controle de posição, que fica bang-bang) e 100% ≈ 1950 RPM; o relay do auto-tune usa bias 82% ± 18%
+- Driver: **L298N** (queda de ~2 V é normal)
 - OTA requer que o firmware atual + novo caibam na flash simultaneamente
 - A linguagem do projeto é **português** para documentação e exemplos; **inglês** para código
 
