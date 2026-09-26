@@ -8,10 +8,6 @@ Plataforma didática do **LaRA** (Laboratório de Robótica e Automação) para 
 
 A interface web é embarcada no próprio ESP8266: o aluno conecta na rede do Girino e controla a bancada pelo navegador do celular ou notebook — sem instalar MATLAB, Python ou qualquer software, e sem depender de internet.
 
-<p align="center">
-  <img src="docs/images/infografico-uerj-sem-muros.png" alt="Infográfico do Girino — UERJ Sem Muros" width="420">
-</p>
-
 ## Status do Projeto
 
 | Componente | Status |
