@@ -19,6 +19,13 @@ Documentação técnica da plataforma didática Girino.
 | [Análise Comparativa](analise-comparativa.md) | Review dos trabalhos relacionados, gap analysis e estratégia de publicação |
 | [Plano PID](plano-pid.md) | Métodos de sintonia, auto-tune, arquitetura e exemplos didáticos |
 
+## Eventos
+
+| Documento | Descrição |
+|---|---|
+| [Resumo UERJ Sem Muros](resumo-uerj-sem-muros.md) | Resumo do projeto para submissão à UERJ Sem Muros (1000–2000 caracteres) |
+| [Infográfico UERJ Sem Muros](images/infografico-uerj-sem-muros.png) | Infográfico de divulgação do projeto (PNG, 1080×1350) |
+
 ## Recursos
 
 - `images/` — Diagramas, esquemas de ligação, fotos

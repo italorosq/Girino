@@ -23,9 +23,17 @@ void motorSetSpeed(int speed);
 
 /**
  * Define a direção do motor.
- * @param direction MOTOR_DIR_FORWARD, MOTOR_DIR_REVERSE ou MOTOR_DIR_STOP
+ * @param direction MOTOR_DIR_FORWARD, MOTOR_DIR_REVERSE,
+ *                  MOTOR_DIR_STOP (roda-livre) ou MOTOR_DIR_BRAKE
  */
 void motorSetDirection(int direction);
+
+/**
+ * Freio dinâmico (L298N: IN3+IN4 em HIGH): trava o eixo no lugar.
+ * Usado pela malha de posição quando a saída está abaixo da zona morta
+ * do motor — mata a inércia (roda-livre) que causava o overshoot.
+ */
+void motorBrake();
 
 /**
  * Retorna a velocidade atual do motor.

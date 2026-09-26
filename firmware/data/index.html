@@ -20,239 +20,366 @@
     <div class="header-right">
       <span class="conn-dot" id="conn-dot" title="Status da conexão"></span>
       <span class="conn-label" id="conn-label">conectando...</span>
+      <button class="btn-stop-all" id="btn-stop-all" title="Para o motor e todos os controladores">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        PARAR
+      </button>
     </div>
   </header>
 
-  <!-- ===== GRÁFICO ===== -->
+  <!-- ===== ABAS DE MODO ===== -->
+  <nav class="tabs" id="mode-tabs">
+    <button class="tab active" data-mode="speed">
+      <span class="tab-icon">⟳</span>
+      <span class="tab-name">Velocidade</span>
+      <span class="tab-sub">PID + Auto-Tune</span>
+    </button>
+    <button class="tab" data-mode="position">
+      <span class="tab-icon">⌖</span>
+      <span class="tab-name">Posição</span>
+      <span class="tab-sub">Ângulo alvo</span>
+    </button>
+    <button class="tab" data-mode="open-loop">
+      <span class="tab-icon">✋</span>
+      <span class="tab-name">Manual</span>
+      <span class="tab-sub">Malha aberta</span>
+    </button>
+  </nav>
+
+  <!-- ===== GRÁFICO (topo, largura total) ===== -->
   <section class="card" id="chart-panel">
     <div class="card-header">
-      <h2>Resposta em Tempo Real</h2>
+      <h2 id="chart-title">Resposta em Tempo Real</h2>
       <div class="chart-controls">
-        <button class="btn-ctrl btn-ctrl-success" id="btn-start" title="Iniciar">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        </button>
-        <button class="btn-ctrl btn-ctrl-warning" id="btn-pause" title="Pausar" disabled>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-        </button>
-        <button class="btn-ctrl btn-ctrl-danger" id="btn-stop" title="Parar" disabled>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-        </button>
-        <span class="ctrl-divider"></span>
         <button class="btn-icon" id="btn-export-csv" title="Exportar gráfico do navegador (CSV)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
         <button class="btn-icon" id="btn-export-exp" title="Exportar experimento gravado no ESP (CSV)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 21 6"/></svg>
         </button>
+        <button class="btn-icon" id="btn-clear-chart" title="Limpar gráfico">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        </button>
       </div>
     </div>
     <div class="chart-container">
       <canvas id="chart"></canvas>
     </div>
-    <div class="chart-footer">
-      <span class="chart-stat"><span class="chart-stat-label">RPM</span><span class="chart-stat-value" id="stat-rpm">0.0</span></span>
-      <span class="chart-stat"><span class="chart-stat-label">Ângulo</span><span class="chart-stat-value" id="stat-angle">0.0°</span></span>
-      <span class="chart-stat" id="setpoint-stat"><span class="chart-stat-label">Setpoint</span><span class="chart-stat-value" id="stat-setpoint">--</span></span>
-      <span class="chart-stat"><span class="chart-stat-label">Pulsos</span><span class="chart-stat-value" id="stat-pulses">0</span></span>
-    </div>
   </section>
 
-  <!-- ===== MODO DE OPERAÇÃO ===== -->
-  <section class="card" id="mode-panel">
-    <h2>Modo de Operação</h2>
-    <div class="radio-group">
-      <label class="radio-btn">
-        <input type="radio" name="mode" value="open-loop" checked>
-        <span class="radio-label">Malha Aberta</span>
-      </label>
-      <label class="radio-btn">
-        <input type="radio" name="mode" value="pid">
-        <span class="radio-label">PID</span>
-      </label>
-      <label class="radio-btn">
-        <input type="radio" name="mode" value="position">
-        <span class="radio-label">Posição</span>
-      </label>
-      <label class="radio-btn">
-        <input type="radio" name="mode" value="autotune">
-        <span class="radio-label">Auto-Tune</span>
-      </label>
-    </div>
-    <p class="mode-desc" id="mode-desc"></p>
+  <div class="layout">
 
-    <!-- Malha Aberta -->
-    <div id="open-loop-content">
-      <hr class="card-divider">
-      <div class="form-row">
-        <label for="input-speed">Velocidade (PWM): <span id="speed-display">50</span>%</label>
-        <input type="range" id="input-speed" min="0" max="100" value="50">
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-success" id="btn-forward">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
-          Horário
-        </button>
-        <button class="btn btn-primary" id="btn-reverse">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
-          Anti-horário
-        </button>
-      </div>
-    </div>
+    <div class="col-controls">
 
-    <!-- Setpoint (PID e Auto-Tune) -->
-    <div id="setpoint-content" class="hidden">
-      <hr class="card-divider">
-      <div class="form-row">
-        <label for="input-setpoint">Setpoint (RPM)</label>
-        <input type="number" id="input-setpoint" value="1000" min="0" max="2400" step="10">
-      </div>
-    </div>
+      <!-- ===== MODO: VELOCIDADE (PID) ===== -->
+      <section class="card mode-card" id="panel-speed">
+        <div class="mode-head">
+          <h2>Controle de Velocidade</h2>
+          <span class="run-badge" id="badge-speed">Parado</span>
+        </div>
+        <p class="mode-desc">Malha fechada: o PID ajusta o PWM para manter o motor no setpoint de rotação, mesmo sob carga.</p>
 
-    <!-- PID -->
-    <div id="pid-content" class="hidden">
-      <hr class="card-divider">
-      <div class="form-row">
-        <label for="select-tuning">Método de Sintonia</label>
-        <select id="select-tuning">
-          <option value="manual">Manual</option>
-          <option value="zn">Ziegler-Nichols</option>
-          <option value="tl">Tyreus-Luyben</option>
-          <option value="cc">Cohen-Coon</option>
-        </select>
-      </div>
-      <div id="pid-gains">
-        <div class="form-row-inline">
-          <div class="form-field">
-            <label for="input-kp">Kp</label>
+        <div class="live-readout" id="readout-speed">
+          <div class="readout-item">
+            <span class="readout-label">Setpoint</span>
+            <span class="readout-value sp" id="ro-sp">--</span>
+            <span class="readout-unit">RPM</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">Medido</span>
+            <span class="readout-value" id="ro-rpm">--</span>
+            <span class="readout-unit">RPM</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">Erro</span>
+            <span class="readout-value err" id="ro-err">--</span>
+            <span class="readout-unit">RPM</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">Saída</span>
+            <span class="readout-value out" id="ro-out">--</span>
+            <span class="readout-unit">%</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="input-setpoint">Setpoint (RPM)
+            <span class="help" title="Velocidade desejada em rotações por minuto. O PID tenta manter o motor nela.">?</span>
+          </label>
+          <input type="number" id="input-setpoint" value="1000" min="0" max="3000" step="10">
+        </div>
+
+        <div class="gains-row">
+          <div class="field">
+            <label for="input-kp">Kp
+              <span class="help" title="Proporcional: reage ao erro AGORA. Maior = responde rápido, mas pode oscilar.">?</span>
+            </label>
             <input type="number" id="input-kp" value="0.08" min="0" step="0.01">
           </div>
-          <div class="form-field">
-            <label for="input-ki">Ki</label>
+          <div class="field">
+            <label for="input-ki">Ki
+              <span class="help" title="Integral: acumula o erro PASSADO. Elimina a diferença que o Kp sozinho não zera (offset).">?</span>
+            </label>
             <input type="number" id="input-ki" value="0.25" min="0" step="0.05">
           </div>
-          <div class="form-field">
-            <label for="input-kd">Kd</label>
-            <input type="number" id="input-kd" value="0" min="0" step="0.005">
+          <div class="field">
+            <label for="input-kd">Kd
+              <span class="help" title="Derivativo: antecipa o FUTURO usando a variação do erro. Amortece o overshoot (na bancada: 0,005 reduz o overshoot do degrau de ~5,6% para ~3,3%).">?</span>
+            </label>
+            <input type="number" id="input-kd" value="0.005" min="0" step="0.005">
           </div>
         </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="btn-apply-pid">Aplicar ganhos</button>
-        <button class="btn btn-success" id="btn-run-pid">Iniciar</button>
-      </div>
-    </div>
 
-    <!-- Posição (Ângulo) -->
-    <div id="position-content" class="hidden">
-      <hr class="card-divider">
-      <p class="hint-text">1) Zere a posição atual · 2) Defina o ângulo alvo e os ganhos · 3) Inicie</p>
-      <div class="form-row">
-        <label for="input-angle">Ângulo alvo (°)</label>
-        <input type="number" id="input-angle" value="90" min="-3600" max="3600" step="5">
-      </div>
-      <div class="form-row-inline">
-        <div class="form-field">
-          <label for="input-pkp">Kp (%/°)</label>
-          <input type="number" id="input-pkp" value="1" min="0" step="0.1">
-        </div>
-        <div class="form-field">
-          <label for="input-pki">Ki (%/°·s)</label>
-          <input type="number" id="input-pki" value="0.2" min="0" step="0.05">
-        </div>
-        <div class="form-field">
-          <label for="input-pkd">Kd (%·s/°)</label>
-          <input type="number" id="input-pkd" value="0.05" min="0" step="0.01">
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="btn-apply-pos">Aplicar ganhos</button>
-        <button class="btn btn-success" id="btn-run-pos">Iniciar</button>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-warning" id="btn-zero">Zerar posição</button>
-      </div>
-      <p class="hint-text">Sintonia manual: o Auto-Tune identifica a malha de velocidade, não a de posição.</p>
-    </div>
+        <details class="edu-box">
+          <summary>Como funciona o PID?</summary>
+          <p class="formula">PWM = Kp·e + Ki·∫e·dt + Kd·de/dt</p>
+          <p>O erro <strong>e = setpoint − medida</strong>. O Kp empurra proporcional ao erro, o Ki corrige o acúmulo (elimina o offset em regime), e o Kd freia quando a medida se aproxima rápido do alvo.</p>
+        </details>
 
-    <!-- Auto-Tune -->
-    <div id="autotune-content" class="hidden">
-      <hr class="card-divider">
-      <div class="form-row-inline">
-        <div class="form-field">
-          <label for="input-relay">Amplitude (%)</label>
-          <input type="number" id="input-relay" value="18" min="5" max="40" step="1">
+        <div class="btn-row">
+          <button class="btn btn-success" id="btn-run-speed">Iniciar</button>
         </div>
-        <div class="form-field">
-          <label for="input-bias" title="Pedestal de PWM que vence a zona morta do motor. Faixa do relay: bias ± amplitude.">Bias (%)</label>
-          <input type="number" id="input-bias" value="82" min="0" max="95" step="1">
-        </div>
-        <div class="form-field">
-          <label for="input-cycles">Ciclos</label>
-          <input type="number" id="input-cycles" value="3" min="2" max="8" step="1">
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="btn-autotune">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-          Executar Auto-Tune
-        </button>
-      </div>
-      <div class="progress-bar-container hidden" id="autotune-progress-container">
-        <div class="progress-bar" id="autotune-progress"></div>
-        <span class="progress-label" id="autotune-progress-label">0%</span>
-      </div>
-      <div class="result-box hidden" id="autotune-results">
-        <h3>Resultados do Auto-Tune</h3>
-        <div class="result-grid">
-          <div class="result-item">
-            <span class="result-label">Ku (ganho crítico)</span>
-            <span class="result-value" id="val-ku">--</span>
+
+        <!-- ===== AUTO-TUNE (dentro de Velocidade) ===== -->
+        <div class="sub-card" id="autotune-card">
+          <div class="sub-card-head">
+            <h3>Sintonia Automática</h3>
+            <span class="help-inline">Identifica a planta de velocidade e sugere ganhos</span>
           </div>
-          <div class="result-item">
-            <span class="result-label">Tu (período crítico)</span>
-            <span class="result-value" id="val-tu">--</span>
+          <p class="hint-text">O relé faz o motor oscilar de forma controlada (bias ± amplitude) em torno do setpoint e mede <strong>Ku</strong> (ganho crítico) e <strong>Tu</strong> (período crítico). Depois, compare as receitas de sintonia.</p>
+          <div class="gains-row">
+            <div class="field">
+              <label for="input-relay">Amplitude (%)
+                <span class="help" title="Meia-onda do relay em % de PWM. Quanto maior, mais forte o motor oscila.">?</span>
+              </label>
+              <input type="number" id="input-relay" value="18" min="5" max="40" step="1">
+            </div>
+            <div class="field">
+              <label for="input-bias">Bias (%)
+                <span class="help" title="Pedestal de PWM. Precisa ficar acima da zona morta do motor (~60% neste bancada), senão o motor não gira.">?</span>
+              </label>
+              <input type="number" id="input-bias" value="82" min="0" max="95" step="1">
+            </div>
+            <div class="field">
+              <label for="input-cycles">Ciclos</label>
+              <input type="number" id="input-cycles" value="3" min="2" max="8" step="1">
+            </div>
+          </div>
+          <button class="btn btn-secondary" id="btn-autotune">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+            Executar Auto-Tune
+          </button>
+          <div class="progress-bar-container hidden" id="autotune-progress-container">
+            <div class="progress-bar" id="autotune-progress"></div>
+            <span class="progress-label" id="autotune-progress-label">0%</span>
+          </div>
+          <div class="result-box hidden" id="autotune-results">
+            <div class="result-grid">
+              <div class="result-item">
+                <span class="result-label">Ku — ganho crítico</span>
+                <span class="result-value" id="val-ku">--</span>
+              </div>
+              <div class="result-item">
+                <span class="result-label">Tu — período crítico</span>
+                <span class="result-value" id="val-tu">--</span>
+              </div>
+            </div>
+            <p class="hint-text">Toque num método para preencher os ganhos acima e testar:</p>
+            <div class="tuning-suggestions" id="tuning-suggestions"></div>
           </div>
         </div>
-        <div class="tuning-suggestions" id="tuning-suggestions"></div>
-        <p class="hint-text">Sugestões para o <strong>PID de velocidade</strong> — clique para preencher os ganhos.</p>
-      </div>
-    </div>
-  </section>
+      </section>
 
-  <!-- ===== STATUS ===== -->
-  <section class="card" id="status-panel">
-    <h2>Status do Sistema</h2>
-    <div class="status-grid">
-      <div class="status-item">
-        <span class="status-label">Modo</span>
-        <span class="status-value" id="stat-mode">--</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Clientes</span>
-        <span class="status-value" id="stat-clients">0</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Encoder</span>
-        <span class="status-value" id="stat-enc-rate" title="Taxa de pulsos recebidos do encoder">0 p/s</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Rede</span>
-        <span class="status-value" id="stat-ssid">--</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">IP</span>
-        <span class="status-value" id="stat-ip">--</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Heap Livre</span>
-        <span class="status-value" id="stat-heap">-- KB</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Uptime</span>
-        <span class="status-value" id="stat-uptime">00:00:00</span>
-      </div>
-    </div>
-  </section>
+      <!-- ===== MODO: POSIÇÃO (PID) ===== -->
+      <section class="card mode-card hidden" id="panel-position">
+        <div class="mode-head">
+          <h2>Controle de Posição</h2>
+          <span class="run-badge" id="badge-position">Parado</span>
+        </div>
+        <p class="mode-desc">Malha fechada em cascata: o PID move o eixo até o ângulo alvo e o mantém lá.</p>
+
+        <div class="live-readout" id="readout-position">
+          <div class="readout-item">
+            <span class="readout-label">Alvo</span>
+            <span class="readout-value sp" id="ro-target">--</span>
+            <span class="readout-unit">°</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">Ângulo</span>
+            <span class="readout-value" id="ro-angle">--</span>
+            <span class="readout-unit">°</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">Erro</span>
+            <span class="readout-value err" id="ro-perr">--</span>
+            <span class="readout-unit">°</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">Saída</span>
+            <span class="readout-value out" id="ro-pout">--</span>
+            <span class="readout-unit">%</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="input-angle">Ângulo alvo (°)
+            <span class="help" title="Posição desejada do eixo. A origem (0°) é onde você zerou o encoder.">?</span>
+          </label>
+          <input type="number" id="input-angle" value="90" min="-3600" max="3600" step="5">
+        </div>
+
+        <div class="gains-row">
+          <div class="field">
+            <label for="input-pkp">Kp (%/°)</label>
+            <input type="number" id="input-pkp" value="1" min="0" step="0.1">
+          </div>
+          <div class="field">
+            <label for="input-pki">Ki (%/°·s)</label>
+            <input type="number" id="input-pki" value="0.2" min="0" step="0.05">
+          </div>
+          <div class="field">
+            <label for="input-pkd">Kd (%·s/°)</label>
+            <input type="number" id="input-pkd" value="0.05" min="0" step="0.01">
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="btn-zero">Zerar posição (0° aqui)</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-success" id="btn-run-pos">Iniciar</button>
+        </div>
+
+        <!-- ===== AUTO-TUNE de POSIÇÃO (relé simétrico ±d) ===== -->
+        <div class="sub-card" id="autotune-pos-card">
+          <div class="sub-card-head">
+            <h3>Sintonia Automática</h3>
+            <span class="help-inline">Identifica a planta de posição e sugere ganhos</span>
+          </div>
+          <p class="hint-text">O relé alterna o motor em <strong>±amplitude</strong> (horário/anti-horário) fazendo o eixo oscilar em torno do <strong>ângulo alvo</strong> digitado acima. Da oscilação saem <strong>Ku</strong> (ganho crítico, %/°) e <strong>Tu</strong> (período crítico).</p>
+          <div class="gains-row">
+            <div class="field">
+              <label for="input-prelay">Amplitude (%)
+                <span class="help" title="Relé simétrico ±%: metade do tempo em +amplitude, metade em −amplitude. Precisa ficar acima da zona morta (~60% neste bancada), senão o motor não se move.">?</span>
+              </label>
+              <input type="number" id="input-prelay" value="90" min="40" max="100" step="5">
+            </div>
+            <div class="field">
+              <label for="input-pcycles">Ciclos</label>
+              <input type="number" id="input-pcycles" value="3" min="2" max="8" step="1">
+            </div>
+          </div>
+          <button class="btn btn-secondary" id="btn-autotune-pos">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+            Executar Auto-Tune
+          </button>
+          <div class="progress-bar-container hidden" id="autotune-pos-progress-container">
+            <div class="progress-bar" id="autotune-pos-progress"></div>
+            <span class="progress-label" id="autotune-pos-progress-label">0%</span>
+          </div>
+          <div class="result-box hidden" id="autotune-pos-results">
+            <div class="result-grid">
+              <div class="result-item">
+                <span class="result-label">Ku — ganho crítico (%/°)</span>
+                <span class="result-value" id="val-ku-pos">--</span>
+              </div>
+              <div class="result-item">
+                <span class="result-label">Tu — período crítico</span>
+                <span class="result-value" id="val-tu-pos">--</span>
+              </div>
+            </div>
+            <p class="hint-text">Toque num método para preencher os ganhos acima e testar:</p>
+            <div class="tuning-suggestions" id="tuning-suggestions-pos"></div>
+          </div>
+        </div>
+
+        <p class="hint-text">Ordem: <strong>1)</strong> zere a posição · <strong>2)</strong> defina alvo e ganhos · <strong>3)</strong> inicie. Os ganhos são da malha de <strong>posição</strong> (graus) — diferentes dos de velocidade. Na bancada real a zona morta é ~60% e a correia tem folga: o controle chega ao alvo em <strong>passos (bang-bang)</strong> e um erro residual de <strong>~1-2° é mecânico</strong> (folga da correia), não do PID.</p>
+      </section>
+
+      <!-- ===== MODO: MANUAL (MALHA ABERTA) ===== -->
+      <section class="card mode-card hidden" id="panel-open-loop">
+        <div class="mode-head">
+          <h2>Controle Manual</h2>
+          <span class="run-badge" id="badge-open-loop">Parado</span>
+        </div>
+        <p class="mode-desc">Malha aberta: PWM fixo, sem realimentação. Gire o botão e observe: a velocidade muda com a carga? Compare com o PID.</p>
+
+        <div class="live-readout" id="readout-open-loop">
+          <div class="readout-item">
+            <span class="readout-label">PWM</span>
+            <span class="readout-value out" id="ro-pwm">50</span>
+            <span class="readout-unit">%</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">Medido</span>
+            <span class="readout-value" id="ro-orpm">--</span>
+            <span class="readout-unit">RPM</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="input-speed">PWM: <span id="speed-display">50</span>%</label>
+          <input type="range" id="input-speed" min="0" max="100" value="50">
+          <p class="hint-text" id="deadzone-hint">Neste bancada o motor só começa a girar perto de ~60% (zona morta).</p>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-success" id="btn-forward">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+            Horário
+          </button>
+          <button class="btn btn-primary" id="btn-reverse">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+            Anti-horário
+          </button>
+        </div>
+      </section>
+
+    </div><!-- /col-controls -->
+
+    <div class="col-chart">
+
+      <!-- ===== STATUS ===== -->
+      <section class="card" id="status-panel">
+        <div class="status-grid">
+          <div class="status-item">
+            <span class="status-label">Modo</span>
+            <span class="status-value" id="stat-mode">--</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Encoder</span>
+            <span class="status-value" id="stat-enc-rate" title="Taxa de pulsos recebidos do encoder">0 p/s</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Rede</span>
+            <span class="status-value" id="stat-ssid">--</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Clientes</span>
+            <span class="status-value" id="stat-clients">0</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">IP</span>
+            <span class="status-value" id="stat-ip">--</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Heap Livre</span>
+            <span class="status-value" id="stat-heap">-- KB</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Uptime</span>
+            <span class="status-value" id="stat-uptime">00:00:00</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Pulsos</span>
+            <span class="status-value" id="stat-pulses">0</span>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /col-chart -->
+
+  </div><!-- /layout -->
 
   <!-- ===== FOOTER ===== -->
   <footer>

@@ -145,7 +145,7 @@ Girino/
 | `/api/status` | GET | — | Versão, heap, uptime, IP, clientes do AP e `mode` |
 | `/api/pid/config` | GET/POST | `kp`, `ki`, `kd`, `setpoint` (RPM) | PID de velocidade |
 | `/api/pid/start` `/api/pid/stop` | POST | — | Liga/desliga malha fechada de velocidade |
-| `/api/pid/autotune` | GET/POST | `relay_amplitude`, `bias`, `cycles`, `setpoint` | Auto-tune relay feedback (bias vence a zona morta do motor) |
+| `/api/pid/autotune` | GET/POST | `plant` (speed/position), `relay_amplitude`, `bias` (só speed), `cycles`, `setpoint` (RPM) ou `target` (graus) | Auto-tune relay feedback — bias vence a zona morta (speed); relé ±amplitude em torno do alvo (position) |
 | `/api/pid/tuning` | GET | — | Ku, Tu e sugestões `zn`/`tl`/`cc` |
 | `/api/pid/tuning/apply` | POST | `method` (ZN/TL/CC) | Aplica regra de sintonia |
 | `/api/pid/response` | GET | — | Resposta ao degrau (tempo, setpoint, medida, `unit` rpm/deg) |
@@ -163,6 +163,9 @@ Girino/
 - O firmware tem **console serial** (115200): `help`, `status`, `enc`, `motor`, `pid`, `pos`, `autotune`, `tune` — permite controlar a bancada sem Wi-Fi
 - **Sentido motor/encoder é auto-calibrado** no primeiro movimento (pulso de teste): fiação invertida é corrigida em software; velocidade/auto-tune usam |RPM| e são imunes a polaridade
 - Bancada medida: zona morta do motor ~60% de duty (limita o controle de posição, que fica bang-bang) e 100% ≈ 1950 RPM; o relay do auto-tune usa bias 82% ± 18%
+- Curva real duty×velocidade medida: 65% ≈ 5 RPM (atrito estático, movimento errático), 70% ≈ 400 RPM (região confiável), 100% ≈ 2000+ RPM — a malha de posição usa duty 70% (`POS_MAX_DUTY`)
+- **Correia com folga**: erro residual de posição de ~1-2° é mecânico (backlash da correia), não do PID; deadband ±2° cobre
+- Pulso de calibração de sentido amaciado: 70% × 50ms + freio (`MOTOR_CALIB_*`) — antes girava 400°+ (mais de uma volta) e parecia overshoot no gráfico
 - Driver: **L298N** (queda de ~2 V é normal)
 - OTA requer que o firmware atual + novo caibam na flash simultaneamente
 - A linguagem do projeto é **português** para documentação e exemplos; **inglês** para código

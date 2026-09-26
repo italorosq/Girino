@@ -33,18 +33,35 @@ enum AutotuneState {
 };
 
 /**
+ * Which closed loop is being identified:
+ *
+ *   SPEED    — unidirectional relay (bias ± d) around an RPM setpoint.
+ *              The bias keeps the motor above its dead zone.
+ *   POSITION — symmetric relay (+d forward / -d reverse) around an
+ *              angle target (degrees). The plant is bidirectional, so
+ *              no bias is needed; d must exceed the motor dead zone
+ *              (~60% on this bench) for both relay states to move.
+ */
+enum AutotunePlant {
+    AUTOTUNE_PLANT_SPEED,
+    AUTOTUNE_PLANT_POSITION,
+};
+
+/**
  * Initializes the module (idle state).
  */
 void autotuneInit();
 
 /**
  * Starts a relay feedback experiment.
+ * @param plant Which loop is identified (speed or position)
  * @param relayAmp Relay amplitude d in % PWM (5-100)
- * @param bias Pedestal in % PWM (0-60). Use ~the dead zone of the motor.
+ * @param bias Pedestal in % PWM (0-95). Only used for SPEED; ignored
+ *             for POSITION (symmetric relay around zero).
  * @param cycles Number of full periods used for averaging (3-5)
- * @param setpoint Operating point in RPM around which the system oscillates
+ * @param setpoint Operating point: RPM (speed) or degrees (position)
  */
-void autotuneStart(float relayAmp, float bias, int cycles, float setpoint);
+void autotuneStart(AutotunePlant plant, float relayAmp, float bias, int cycles, float setpoint);
 
 /**
  * Cancels a running experiment (safety stop).
@@ -61,9 +78,16 @@ void autotuneCancel();
 void autotuneCompute(float measurement, float dt);
 
 /**
- * @return Current relay output in % (0 or d) — apply this to the motor.
+ * @return Current relay output in % — SPEED: 0..100 (forward only);
+ *         POSITION: -d..+d with sign (negative = reverse).
+ *         Apply the magnitude to the motor and the sign to the direction.
  */
 float autotuneGetRelayOutput();
+
+/**
+ * @return Which plant the experiment identifies.
+ */
+AutotunePlant autotuneGetPlant();
 
 /**
  * @return true while the experiment is running.

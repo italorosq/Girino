@@ -39,6 +39,8 @@ struct PidCore {
     float prevMeasurement;
     float output;
     float outMin, outMax;
+    float integralTermMax;     // teto da contribuição integral (% de saída)
+    float derivativeTermMax;   // teto da contribuição derivativa (% de saída)
     bool firstSample;  // primeiro passo após start: sem derivada
 };
 
@@ -54,6 +56,8 @@ static void coreInit(PidCore& c, float outMin, float outMax) {
     c.output = 0.0;
     c.outMin = outMin;
     c.outMax = outMax;
+    c.integralTermMax = outMax;        // por padrão, sem teto extra
+    c.derivativeTermMax = outMax;      // por padrão, sem teto do D
     c.firstSample = true;
 }
 
@@ -80,10 +84,19 @@ static float coreCompute(PidCore& c, float measurement, float dt) {
     float newIntegral = c.integral + error * dt;
 
     // --- Derivative on measurement ---
+    // Teto da CONTRIBUIÇÃO derivativa (em % de saída, não no de/dt cru):
+    // com o eixo a toda velocidade o de/dt passa de 10.000 °/s e o termo
+    // D sozinho inverteria a saída a cada tick. O clamp mantém o
+    // amortecimento sem o soco.
     float derivative = -(measurement - c.prevMeasurement) / dt;
+    float dTerm = c.kd * derivative;
+    if (c.derivativeTermMax < c.outMax) {
+        dTerm = fmaxf(-c.derivativeTermMax,
+                      fminf(c.derivativeTermMax, dTerm));
+    }
 
     // --- Raw output ---
-    float rawOutput = c.kp * error + c.ki * newIntegral + c.kd * derivative;
+    float rawOutput = c.kp * error + c.ki * newIntegral + dTerm;
 
     // --- Saturation / anti-windup (conditional integration) ---
     bool saturatedHigh = rawOutput > c.outMax;
@@ -94,12 +107,20 @@ static float coreCompute(PidCore& c, float measurement, float dt) {
     if ((saturatedHigh && pushingHigh) || (saturatedLow && pushingLow)) {
         // Do not integrate while pushing further into saturation
         newIntegral = c.integral;
-        rawOutput = c.kp * error + c.ki * newIntegral + c.kd * derivative;
+        rawOutput = c.kp * error + c.ki * newIntegral + dTerm;
     }
 
-    // Hard clamp on the integral as a last resort
+    // Hard clamp on the integral as a last resort.
+    // O teto da CONTRIBUIÇÃO integral (integralTermMax, em % de saída)
+    // limita o que o termo Ki*I consegue sozinho — na malha de posição,
+    // manter o termo integral abaixo da zona morta do motor evita que o
+    // motor fique acionado para sempre com erro ~0 (rastejo além do alvo).
     float integralMin = c.outMin / (c.ki > 0.0 ? c.ki : 1.0);
     float integralMax = c.outMax / (c.ki > 0.0 ? c.ki : 1.0);
+    if (c.integralTermMax < c.outMax) {
+        integralMax = fminf(integralMax, c.integralTermMax / (c.ki > 0.0 ? c.ki : 1.0));
+        integralMin = fmaxf(integralMin, -integralMax);
+    }
     if (newIntegral > integralMax) newIntegral = integralMax;
     if (newIntegral < integralMin) newIntegral = integralMin;
 
@@ -117,6 +138,8 @@ static float coreCompute(PidCore& c, float measurement, float dt) {
 void pidInit() {
     coreInit(speedPid, PID_OUTPUT_MIN, PID_OUTPUT_MAX);
     coreInit(posPid, POS_OUTPUT_MIN, POS_OUTPUT_MAX);
+    posPid.integralTermMax = POS_INTEGRAL_TERM_MAX;      // abaixo da zona morta do motor
+    posPid.derivativeTermMax = POS_DERIVATIVE_TERM_MAX;  // sem soco do D em alta velocidade
     Serial.println("[PID] Inicializado");
     Serial.println("[Pos] Controle de posicao inicializado (angulo)");
 }
@@ -221,10 +244,23 @@ float posCompute(float measurementDeg, float dt) {
         return 0.0;
     }
 
+    // Limites de atuação DINÂMICOS: perto do alvo o duty é limitado a
+    // POS_SOFT_DUTY (logo acima da zona morta do motor) — chutes curtos
+    // que assentam na deadband em vez de escapar por dezenas de graus.
+    // Longe do alvo, atuação plena (±100%).
+    if (fabs(error) < POS_SOFT_NEAR_DEG) {
+        posPid.outMax = POS_SOFT_DUTY;
+        posPid.outMin = -POS_SOFT_DUTY;
+    } else {
+        posPid.outMax = POS_OUTPUT_MAX;
+        posPid.outMin = POS_OUTPUT_MIN;
+    }
+
     // NOTA DIDÁTICA: neste motor a zona morta é alta (~60% de duty), o
     // que torna o controle de posição "bang-bang" (cada acionamento
-    // mínimo move ~230 RPM). Com um driver adequado (zona morta ~10-20%)
-    // o mesmo PID converge suavemente.
+    // mínimo move ~230 RPM). O freio dinâmico (ver main.cpp) e o teto do
+    // termo integral (POS_INTEGRAL_TERM_MAX) amansam a caça; com um
+    // driver adequado (zona morta ~10-20%) o mesmo PID converge suavemente.
     return coreCompute(posPid, measurementDeg, dt);
 }
 

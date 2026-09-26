@@ -67,7 +67,8 @@ monitor (`pio device monitor`) e digite `help`:
 | `pid start` / `pid stop` | liga/desliga a malha de velocidade |
 | `pos <kp> <ki> <kd> <graus>` | configura o PID de posição |
 | `pos start` / `pos stop` / `pos zero` | controle de posição / zera origem |
-| `autotune <amp> <bias> <n> <sp>` | inicia o relay feedback |
+| `autotune <amp> <bias> <n> <sp>` | inicia o relay feedback (velocidade) |
+| `autotune pos <amp> <n> <graus>` | inicia o relay feedback (posição, ±amp) |
 | `autotune cancel` | cancela o experimento |
 | `tune` | mostra Ku/Tu e ganhos ZN/TL/CC do último auto-tune |
 
@@ -134,8 +135,8 @@ include/
 | `/api/pid/config` | GET/POST | Configura/consulta ganhos e setpoint do PID de velocidade |
 | `/api/pid/start` | POST | Inicia controle de velocidade em malha fechada |
 | `/api/pid/stop` | POST | Para o PID, volta a malha aberta |
-| `/api/pid/autotune` | GET/POST | Inicia/consulta experimento relay feedback |
-| `/api/pid/tuning` | GET | Ku, Tu e sugestões `zn`/`tl`/`cc` |
+| `/api/pid/autotune` | GET/POST | Inicia/consulta experimento relay feedback (`plant=speed\|position`) |
+| `/api/pid/tuning` | GET | Planta identificada (`plant`), Ku, Tu e sugestões `zn`/`tl`/`cc` |
 | `/api/pid/tuning/apply` | POST | Aplica regra de sintonia (`method=ZN|TL|CC`) |
 | `/api/pid/response` | GET | Última resposta ao degrau (tempo, setpoint, medida, `unit`) |
 | `/api/position/config` | GET/POST | Configura/consulta ganhos e alvo do PID de posição (`target` em graus) |
@@ -165,14 +166,20 @@ curl -X POST http://192.168.4.1/api/pid/config -d "kp=2.0&ki=5.0&kd=0.1&setpoint
 # Iniciar malha fechada
 curl -X POST http://192.168.4.1/api/pid/start
 
-# Iniciar auto-tune (relay ±10% em torno de bias 90%, 3 ciclos, setpoint 100 RPM)
+# Iniciar auto-tune de VELOCIDADE (relay ±10% em torno de bias 90%, 3 ciclos, setpoint 100 RPM)
 # O bias (pedestal) precisa vencer a zona morta do motor — o PWM mínimo
 # que faz o eixo girar (medido nesta bancada: ~80%). Use `bias` entre esse
 # valor e 95%, e `relay_amplitude` de forma que bias ± amplitude fique
 # dentro de 0-100%.
-curl -X POST http://192.168.4.1/api/pid/autotune -d "relay_amplitude=10&bias=90&cycles=3&setpoint=100"
+curl -X POST http://192.168.4.1/api/pid/autotune -d "plant=speed&relay_amplitude=10&bias=90&cycles=3&setpoint=100"
 
-# Consultar resultado do auto-tune
+# Iniciar auto-tune de POSIÇÃO (relé simétrico ±90% em torno do alvo 90°)
+# O relé alterna horário/anti-horário; a amplitude precisa ficar acima da
+# zona morta (~60%) para ambos os estados moverem o motor. Os ganhos
+# resultantes estão em %/° (malha de posição).
+curl -X POST http://192.168.4.1/api/pid/autotune -d "plant=position&relay_amplitude=90&cycles=3&target=90"
+
+# Consultar resultado do auto-tune (inclui "plant": onde os ganhos se aplicam)
 curl http://192.168.4.1/api/pid/autotune
 
 # Aplicar Tyreus-Luyben

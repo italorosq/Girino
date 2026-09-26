@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Infográfico — Modernização de Plataformas Robóticas (EIC · CETREINA/UERJ · LaRA)</title>
+<style>
+/* === FONTE (embutida, OFL) === */
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('fontes/SourceSans3-VF.ttf') format('truetype-variations');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('fontes/SourceSans3-Italic-VF.ttf') format('truetype-variations');
+  font-weight: 200 900;
+  font-style: italic;
+  font-display: block;
+}
+
+/* === RESET === */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* === CANVAS: 7087 x 1772 px = 60,00 x 15,00 cm a 300 dpi === */
+html, body { width: 7087px; height: 1772px; overflow: hidden; }
+
+body {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px;
+  background: #E4EBF3;
+  font-family: 'Source Sans 3', 'Segoe UI', 'Arial', sans-serif;
+}
+
+/* === TOKENS === */
+:root {
+  --navy:   #0B2C57;
+  --blue:   #1660A8;
+  --teal:   #0E9594;
+  --amber:  #F2A100;
+  --red:    #C0392B;
+  --border: #D9E3EF;
+}
+
+/* === PANEL BASE === */
+.panel {
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border: 3px solid var(--border);
+  background: #fff;
+  position: relative;
+  box-shadow: 0 3px 12px rgba(11,44,87,.06);
+}
+
+/* ─── PAINEL 1: IDENTIDADE ─── */
+.p1 {
+  width: 1105px;
+  background: var(--navy);
+  border-color: #1A4880;
+  padding: 56px 52px 54px;
+  justify-content: space-between;
+}
+
+.p1-label {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--amber);
+  letter-spacing: 2px;
+  line-height: 1;
+  margin-bottom: 16px;
+}
+
+.p1-rule {
+  width: 132px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--amber);
+  margin-bottom: 32px;
+}
+
+.p1-deco {
+  position: absolute;
+  pointer-events: none;
+}
+
+.p1-traces { left: 28px; right: 28px; bottom: 336px; height: 190px; }
+.p1-mascot { top: 44px; right: 44px; width: 268px; height: 200px; }
+
+.p1-qr-row {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  margin-top: 26px;
+}
+
+.p1-qr {
+  width: 287px;
+  height: 287px;
+  border-radius: 12px;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.p1-qr-caption { font-size: 40px; line-height: 1.3; }
+.p1-qr-caption strong { display: block; font-weight: 700; color: rgba(255,255,255,.92); }
+.p1-qr-caption span { color: rgba(255,255,255,.72); }
+
+.p1-title {
+  font-size: 80px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.18;
+  margin-bottom: 36px;
+}
+
+.p1-subtitle {
+  font-size: 50px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.80);
+  line-height: 1.44;
+}
+
+.p1-divider {
+  height: 1.5px;
+  background: rgba(255,255,255,0.16);
+}
+
+.p1-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.p1-chip {
+  font-size: 40px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.88);
+  border: 1.5px solid rgba(255,255,255,0.30);
+  border-radius: 8px;
+  padding: 10px 18px;
+  background: rgba(255,255,255,0.10);
+  line-height: 1.22;
+}
+
+/* ─── HEADER (painéis 2–6) ─── */
+.ph {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 27px 32px 20px;
+  flex-shrink: 0;
+}
+
+.ph-bar {
+  width: 14px;
+  border-radius: 7px;
+  align-self: stretch;
+  min-height: 44px;
+}
+
+.ph-title {
+  font-size: 60px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.15;
+}
+
+.sep {
+  height: 2px;
+  background: var(--border);
+  margin: 0 32px;
+  flex-shrink: 0;
+}
+
+.p2 .ph { background: rgba(192,57,43,.06); }
+.p3 .ph, .p4 .ph { background: rgba(22,96,168,.06); }
+.p5 .ph, .p6 .ph { background: rgba(14,149,148,.07); }
+
+.p2 .sep { background: linear-gradient(90deg, rgba(192,57,43,.45), rgba(192,57,43,0) 78%); }
+.p3 .sep, .p4 .sep { background: linear-gradient(90deg, rgba(22,96,168,.45), rgba(22,96,168,0) 78%); }
+.p5 .sep, .p6 .sep { background: linear-gradient(90deg, rgba(14,149,148,.5), rgba(14,149,148,0) 78%); }
+
+/* ─── PAINEL 2: PROBLEMA ─── */
+.p2 { width: 903px; }
+
+.p2-items {
+  flex: 1;
+  padding: 8px 32px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+}
+
+.prob-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 12px 0;
+}
+
+.prob-icon {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(192,57,43,.07);
+  border: 1.5px solid rgba(192,57,43,.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.prob-icon svg { width: 62px; height: 62px; }
+
+.prob-title {
+  font-size: 44px;
+  font-weight: 700;
+  color: var(--red);
+  line-height: 1.18;
+  margin-bottom: 7px;
+}
+
+.prob-desc {
+  font-size: 45px;
+  color: #484858;
+  line-height: 1.36;
+}
+
+.prob-sep {
+  height: 1.5px;
+  background: var(--border);
+  margin: 0 2px;
+}
+
+/* ─── PAINEL 3: TESE E OBJETIVO ─── */
+.p3 { width: 1103px; }
+
+.p3-content {
+  flex: 1;
+  padding: 12px 32px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+}
+
+.p3-content::before {
+  content: '\201C';
+  position: absolute;
+  top: 460px;
+  left: 26px;
+  font-size: 700px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(22,96,168,.06);
+}
+
+.p3-content > * { position: relative; z-index: 1; }
+
+.premise {
+  background: rgba(22,96,168,0.07);
+  border-left: 7px solid var(--blue);
+  border-radius: 0 10px 10px 0;
+  padding: 16px 22px;
+  font-size: 45px;
+  font-weight: 700;
+  color: var(--blue);
+  line-height: 1.32;
+  margin-bottom: 15px;
+}
+
+.obj-label {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  margin-top: 4px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+}
+
+.obj-text {
+  font-size: 48px;
+  color: #2A2A3A;
+  line-height: 1.42;
+}
+
+.obj-text strong { color: var(--navy); font-weight: 700; }
+
+.p3-note {
+  background: rgba(11,44,87,0.05);
+  border-top: 2px dashed var(--border);
+  padding: 14px 32px;
+  margin: 0 -32px 0;
+  font-size: 40px;
+  color: #666;
+  font-style: italic;
+  line-height: 1.33;
+  flex-shrink: 0;
+}
+
+/* ─── PAINEL 4: MÉTODO ─── */
+.p4 { width: 1556px; }
+
+.p4-content {
+  flex: 1;
+  padding: 12px 32px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.steps-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 14px;
+}
+
+.step {
+  background: #F4F7FB;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  box-shadow: 0 2px 10px rgba(11,44,87,.05);
+}
+
+.step-num {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 44px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 3px;
+  box-shadow: 0 0 0 8px rgba(22,96,168,.09);
+}
+
+.step-title {
+  font-size: 44px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.20;
+  margin-bottom: 9px;
+}
+
+.step-desc {
+  font-size: 45px;
+  color: #484858;
+  line-height: 1.36;
+}
+
+.p4-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.chip-blue {
+  font-size: 40px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(22,96,168,0.10);
+  color: var(--blue);
+  border: 1.5px solid rgba(22,96,168,0.26);
+  line-height: 1.2;
+}
+
+/* ─── PAINEL 5: RESULTADOS ─── */
+.p5 { width: 1355px; }
+
+.p5-body {
+  flex: 1;
+  padding: 12px 28px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.metrics-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 12px;
+}
+
+.metric-card {
+  background: rgba(14,149,148,0.07);
+  border: 2px solid rgba(14,149,148,0.20);
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(11,44,87,.05);
+}
+
+.metric-card::before {
+  content: attr(data-g);
+  position: absolute;
+  right: -6px;
+  bottom: -66px;
+  font-size: 300px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(14,149,148,.07);
+}
+
+.metric-card > * { position: relative; z-index: 1; }
+
+.metric-num {
+  font-size: 150px;
+  font-weight: 700;
+  color: var(--teal);
+  line-height: 1;
+  margin-bottom: 9px;
+}
+
+.metric-label {
+  font-size: 40px;
+  font-weight: 600;
+  color: var(--navy);
+  line-height: 1.30;
+}
+
+.photo-wrap {
+  position: relative;
+  height: 500px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(11,44,87,.10);
+}
+
+.photo-wrap::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--teal), rgba(14,149,148,0) 72%);
+  z-index: 2;
+}
+
+.photo-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.photo-overlay {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, rgba(11,44,87,0.80) 0%, transparent 100%);
+  padding: 20px 22px 14px;
+  color: rgba(255,255,255,0.92);
+  font-size: 40px;
+  font-style: italic;
+  line-height: 1.26;
+}
+
+.p5-footer {
+  background: var(--navy);
+  padding: 14px 28px;
+  font-size: 40px;
+  color: rgba(255,255,255,0.88);
+  line-height: 1.32;
+  flex-shrink: 0;
+}
+
+/* ─── PAINEL 6: IMPACTO ─── */
+.p6 { width: 1005px; }
+
+.p6-items {
+  flex: 1;
+  padding: 6px 30px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+}
+
+.impact-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 11px 0;
+}
+
+.impact-num {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 5px;
+  box-shadow: 0 0 0 8px rgba(14,149,148,.10);
+}
+
+.impact-sep { height: 1.5px; background: var(--border); }
+
+.impact-title {
+  font-size: 44px;
+  font-weight: 700;
+  color: #1A1A2E;
+  line-height: 1.18;
+  margin-bottom: 6px;
+}
+
+.impact-desc {
+  font-size: 45px;
+  color: #555;
+  line-height: 1.36;
+}
+
+.p6-footer {
+  background: var(--amber);
+  padding: 13px 30px;
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--navy);
+  text-align: center;
+  line-height: 1.24;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ PAINEL 1: IDENTIDADE ═══ -->
+<div class="panel p1">
+  <svg class="p1-deco p1-traces" viewBox="0 0 1020 190" preserveAspectRatio="none" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M0 130 H 205 L 262 74 H 468"/>
+    <path d="M298 190 V 162 L 350 110 H 556 L 612 164 H 838 L 894 110 H 1020"/>
+    <path d="M0 62 H 120 L 160 100"/>
+    <circle cx="205" cy="130" r="9"/>
+    <circle cx="468" cy="74" r="9"/>
+    <circle cx="612" cy="164" r="9"/>
+    <circle cx="894" cy="110" r="9"/>
+  </svg>
+  <svg class="p1-deco p1-mascot" viewBox="0 0 300 220" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="204" cy="104" r="72"/>
+    <circle cx="176" cy="80" r="18"/>
+    <path d="M142 96 C 96 92, 52 122, 18 114 C 56 128, 96 148, 146 138"/>
+    <path d="M186 138 Q 200 150, 216 142"/>
+  </svg>
+  <div>
+    <div class="p1-label">EIC · CETREINA/UERJ · LaRA</div>
+    <div class="p1-rule"></div>
+    <div class="p1-title">Modernização de Plataformas Robóticas e Desenvolvimento de Infraestrutura para Experimentação em Algoritmos de Robótica</div>
+    <div class="p1-subtitle">Modernizar e manter o que a instituição já tem: o Girino como primeiro produto e o caminho documentado para quem vier depois.</div>
+  </div>
+  <div class="p1-divider"></div>
+  <div>
+    <div class="p1-chips">
+      <span class="p1-chip">Modernizar o que existe</span>
+      <span class="p1-chip">Girino: primeiro produto</span>
+      <span class="p1-chip">Plataforma aberta</span>
+      <span class="p1-chip">Formação do bolsista</span>
+    </div>
+    <div class="p1-qr-row">
+      <img class="p1-qr" src="ativos/qr-repo.png" alt="QR code do repositório do Girino" width="287" height="287">
+      <div class="p1-qr-caption">
+        <strong>Código aberto</strong>
+        <span>github.com/italorosq/Girino</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAINEL 2: PROBLEMA ═══ -->
+<div class="panel p2">
+  <div class="ph">
+    <div class="ph-bar" style="background:var(--red)"></div>
+    <div class="ph-title">Problema</div>
+  </div>
+  <div class="sep"></div>
+  <div class="p2-items">
+
+    <div class="prob-item">
+      <div class="prob-icon">
+        <svg width="68" height="68" viewBox="0 0 68 68" fill="none" stroke="#C0392B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="6" y="30" width="38" height="16" rx="5"/>
+          <circle cx="17" cy="50" r="7"/>
+          <circle cx="33" cy="50" r="7"/>
+          <line x1="40" y1="30" x2="40" y2="17"/>
+          <line x1="40" y1="17" x2="52" y2="12"/>
+          <circle cx="55.5" cy="11" r="4.5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="prob-title">Equipamento preservado e fora de uso</div>
+        <div class="prob-desc">A estrutura continua íntegra, mas o sistema de controle envelhece, o suporte do fabricante acaba e as peças saem de linha.</div>
+      </div>
+    </div>
+
+    <div class="prob-sep"></div>
+
+    <div class="prob-item">
+      <div class="prob-icon">
+        <svg width="68" height="68" viewBox="0 0 68 68" fill="none" stroke="#C0392B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M26 26 L26 19 Q26 9 34 9 Q42 9 42 19 L42 26"/>
+          <rect x="21" y="26" width="26" height="19" rx="6"/>
+          <circle cx="34" cy="32" r="3.4" fill="#C0392B" stroke="none"/>
+          <line x1="34" y1="34" x2="34" y2="40"/>
+          <rect x="14" y="50" width="40" height="11" rx="4"/>
+          <line x1="23" y1="61" x2="23" y2="65"/>
+          <line x1="34" y1="61" x2="34" y2="65"/>
+          <line x1="45" y1="61" x2="45" y2="65"/>
+        </svg>
+      </div>
+      <div>
+        <div class="prob-title">Camada de controle fechada</div>
+        <div class="prob-desc">O que existe não admite modificação, expansão nem integração com as ferramentas atuais.</div>
+      </div>
+    </div>
+
+    <div class="prob-sep"></div>
+
+    <div class="prob-item">
+      <div class="prob-icon">
+        <svg width="68" height="68" viewBox="0 0 68 68" fill="none" stroke="#C0392B" stroke-width="5" stroke-linecap="round">
+          <line x1="4" y1="34" x2="20" y2="34"/>
+          <line x1="48" y1="34" x2="60" y2="34"/>
+          <polyline points="53,26 60,34 53,42"/>
+          <line x1="25" y1="25" x2="43" y2="43"/>
+          <line x1="43" y1="25" x2="25" y2="43"/>
+        </svg>
+      </div>
+      <div>
+        <div class="prob-title">Tentativas anteriores abandonadas</div>
+        <div class="prob-desc">A curva de aprendizado inicial não se sustentou e o equipamento voltou para a prateleira.</div>
+      </div>
+    </div>
+
+    <div class="prob-sep"></div>
+
+    <div class="prob-item">
+      <div class="prob-icon">
+        <svg width="68" height="68" viewBox="0 0 68 68" fill="none" stroke="#C0392B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 11 h16 a10.4 10.4 0 0 1 10.4 10.4 v36.4 a7.8 7.8 0 0 0 -7.8 -7.8 H8 Z"/>
+          <path d="M60 11 h-16 a10.4 10.4 0 0 0 -10.4 10.4 v36.4 a7.8 7.8 0 0 1 7.8 -7.8 H60 Z"/>
+          <polyline points="45,25 54,25 54,37 47,37" stroke-width="4"/>
+          <circle cx="45" cy="25" r="3.2" fill="#C0392B" stroke="none"/>
+          <circle cx="47" cy="37" r="3.2" fill="#C0392B" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <div class="prob-title">Formação sem prática</div>
+        <div class="prob-desc">Controle, cinemática e processamento de sinais estudados sem contato com hardware real, ruído e limitações.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ PAINEL 3: TESE E OBJETIVO ═══ -->
+<div class="panel p3">
+  <div class="ph">
+    <div class="ph-bar" style="background:var(--blue)"></div>
+    <div class="ph-title">Tese e Objetivo</div>
+  </div>
+  <div class="sep"></div>
+  <div class="p3-content">
+    <div class="premise">Manter o equipamento em uso vale tanto quanto adquiri-lo.</div>
+    <div class="premise">Baixar a barreira de entrada é o que devolve o equipamento ao uso.</div>
+    <div class="obj-block">
+      <div class="obj-label">Objetivo</div>
+      <div class="obj-text">Modernizar e manter as plataformas do laboratório, com controladores abertos de baixo custo, e transformar o processo em formação técnica para o bolsista e em recurso aberto para a comunidade acadêmica. <strong>O Girino é o primeiro produto.</strong></div>
+    </div>
+    <div class="p3-note">Bolsista recém-iniciado e sem verba de material: o que já roda usa os componentes que o laboratório tem em estoque.</div>
+  </div>
+</div>
+
+<!-- ═══ PAINEL 4: MÉTODO ═══ -->
+<div class="panel p4">
+  <div class="ph">
+    <div class="ph-bar" style="background:var(--blue)"></div>
+    <div class="ph-title">Método</div>
+  </div>
+  <div class="sep"></div>
+  <div class="p4-content">
+    <div class="steps-grid">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">Caracterizar o que existe</div>
+          <div class="step-desc">Entender a estrutura, medir o que ainda funciona e registrar o que precisa ser trocado.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">Começar pelo Girino</div>
+          <div class="step-desc">Um motor, um driver e um encoder, com interface no navegador, para validar o caminho em escala pequena.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">Avançar por etapas</div>
+          <div class="step-desc">Cada função nova é validada em bancada antes de entrar no equipamento, e o que dá errado é registrado junto com a solução.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div>
+          <div class="step-title">Documentar enquanto acontece</div>
+          <div class="step-desc">Esquemas, medições, listas de materiais e código aberto, para que a próxima pessoa não recomece do zero.</div>
+        </div>
+      </div>
+    </div>
+    <div class="p4-chips">
+      <span class="chip-blue">Ciclos: bancada → plataforma montada → uso real</span>
+      <span class="chip-blue">Adaptações mecânicas impressas em 3D no próprio laboratório</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAINEL 5: RESULTADOS ═══ -->
+<div class="panel p5">
+  <div class="ph">
+    <div class="ph-bar" style="background:var(--teal)"></div>
+    <div class="ph-title">Resultados</div>
+  </div>
+  <div class="sep"></div>
+  <div class="p5-body">
+    <div class="metrics-grid">
+      <div class="metric-card" data-g="2">
+        <div class="metric-num">2</div>
+        <div class="metric-label">malhas PID em bancada: velocidade e posição, com auto-sintonia embarcada</div>
+      </div>
+      <div class="metric-card" data-g="3">
+        <div class="metric-num">3</div>
+        <div class="metric-label">métodos de sintonia comparados: Ziegler-Nichols, Tyreus-Luyben e Cohen-Coon</div>
+      </div>
+      <div class="metric-card" data-g="600">
+        <div class="metric-num">600</div>
+        <div class="metric-label">pulsos por revolução no encoder incremental lido por interrupção</div>
+      </div>
+      <div class="metric-card" data-g="0">
+        <div class="metric-num">0</div>
+        <div class="metric-label">programas a instalar: o controle é feito pelo navegador, sem internet</div>
+      </div>
+    </div>
+    <div class="photo-wrap">
+      <img src="foto-bancada.jpg" alt="Bancada de validação do Girino — ESP8266, driver MOSFET, encoder LPD3806">
+      <div class="photo-overlay">Bancada de validação do Girino — ESP8266 + driver MOSFET + encoder LPD3806-600BM</div>
+    </div>
+  </div>
+  <div class="p5-footer">Sem verba de material: componentes do estoque do laboratório · PID e auto-sintonia validados em bancada · placa de circuito impresso em projeto no KiCad e caixa em 3D nas próximas etapas</div>
+</div>
+
+<!-- ═══ PAINEL 6: IMPACTO ═══ -->
+<div class="panel p6">
+  <div class="ph">
+    <div class="ph-bar" style="background:var(--teal)"></div>
+    <div class="ph-title">Impacto</div>
+  </div>
+  <div class="sep"></div>
+  <div class="p6-items">
+    <div class="impact-item">
+      <div class="impact-num">1</div>
+      <div>
+        <div class="impact-title">Equipamento de volta ao uso</div>
+        <div class="impact-desc">Em vez de comprar de novo, manter e modernizar o que a instituição já pagou.</div>
+      </div>
+    </div>
+    <div class="impact-sep"></div>
+    <div class="impact-item">
+      <div class="impact-num">2</div>
+      <div>
+        <div class="impact-title">Entrada barata para a robótica</div>
+        <div class="impact-desc">O Girino serve a disciplinas, extensão e trabalhos de conclusão, e a bancada é replicável em outros laboratórios.</div>
+      </div>
+    </div>
+    <div class="impact-sep"></div>
+    <div class="impact-item">
+      <div class="impact-num">3</div>
+      <div>
+        <div class="impact-title">Formação técnica</div>
+        <div class="impact-desc">O bolsista percorre o ciclo completo de um projeto de sistemas embarcados, da medição de bancada à documentação de entrega.</div>
+      </div>
+    </div>
+    <div class="impact-sep"></div>
+    <div class="impact-item">
+      <div class="impact-num">4</div>
+      <div>
+        <div class="impact-title">Método replicável</div>
+        <div class="impact-desc">Caracterizar o que existe, adotar arquitetura aberta e documentar em processo contínuo, o que serve a outros equipamentos da instituição.</div>
+      </div>
+    </div>
+  </div>
+  <div class="p6-footer">Diversidade que inspira, conhecimento que transforma</div>
+</div>
+
+</body>
+</html>

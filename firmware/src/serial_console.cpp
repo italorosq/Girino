@@ -10,7 +10,8 @@
  *   pid start | pid stop            liga/desliga a malha de velocidade
  *   pos <kp> <ki> <kd> <graus>      configura PID de posição
  *   pos start | pos stop | pos zero
- *   autotune <amp> <bias> <n> <sp>  inicia relay feedback
+ *   autotune <amp> <bias> <n> <sp>  inicia relay feedback (velocidade)
+ *   autotune pos <amp> <n> <graus>  inicia relay feedback (posição)
  *   autotune cancel                 cancela o experimento
  *   tune                            Ku/Tu e ganhos ZN/TL/CC (após autotune)
  */
@@ -41,8 +42,9 @@ static void printHelp() {
     Serial.println("  pid start | pid stop             liga/desliga a malha de velocidade");
     Serial.println("  pos <kp> <ki> <kd> <graus>       configura PID de posicao");
     Serial.println("  pos start | pos stop | pos zero  controle de posicao / zera origem");
-    Serial.println("  autotune <amp> <bias> <n> <sp>   inicia relay feedback");
-    Serial.println("  autotune cancel                  cancela o experimento");
+ Serial.println("  autotune <amp> <bias> <n> <sp>   inicia relay feedback (velocidade)");
+ Serial.println("  autotune pos <amp> <n> <graus>   inicia relay feedback (posição)");
+ Serial.println("  autotune cancel                  cancela o experimento");
     Serial.println("  tune                             Ku/Tu e ganhos ZN/TL/CC");
     Serial.println();
 }
@@ -183,7 +185,7 @@ static void handleCommand(char* line) {
         return;
     }
 
-    // --- autotune <amp> <bias> <n> <sp> | autotune cancel ---
+    // --- autotune [pos] <amp> ... | autotune cancel ---
     if (!strcmp(cmd, "autotune")) {
         char* a1 = strtok(NULL, " \t");
         if (a1 && !strcmp(a1, "cancel")) {
@@ -193,6 +195,31 @@ static void handleCommand(char* line) {
             Serial.println("[AutoTune] cancelado");
             return;
         }
+
+        // autotune pos <amp> <n> <graus> — relay simétrico ±d na posição
+        if (a1 && !strcmp(a1, "pos")) {
+            char* b1 = strtok(NULL, " \t");
+            float amp = b1 ? atof(b1) : (float)AUTOTUNE_POS_DEFAULT_RELAY;
+            char* b2 = strtok(NULL, " \t");
+            int cycles = b2 ? atoi(b2) : AUTOTUNE_DEFAULT_CYCLES;
+            char* b3 = strtok(NULL, " \t");
+            float target = b3 ? atof(b3) : posGetTarget();
+
+            if (amp < AUTOTUNE_POS_MIN_RELAY || amp > 100.0 ||
+                cycles < 1 || cycles > 8 ||
+                target < -POS_MAX_TARGET_DEG || target > POS_MAX_TARGET_DEG) {
+                Serial.println("[AutoTune] parametros invalidos");
+                return;
+            }
+            pidStop();
+            posStop();
+            setResponseUnit("deg");
+            resetResponseBuffer();
+            autotuneStart(AUTOTUNE_PLANT_POSITION, amp, 0.0, cycles, target);
+            return;
+        }
+
+        // autotune <amp> <bias> <n> <sp> — relay com bias na velocidade
         float amp = a1 ? atof(a1) : (float)AUTOTUNE_DEFAULT_RELAY;
         char* a2 = strtok(NULL, " \t");
         float bias = a2 ? atof(a2) : (float)AUTOTUNE_DEFAULT_BIAS;
@@ -210,7 +237,7 @@ static void handleCommand(char* line) {
         posStop();
         setResponseUnit("rpm");
         resetResponseBuffer();
-        autotuneStart(amp, bias, cycles, sp);
+        autotuneStart(AUTOTUNE_PLANT_SPEED, amp, bias, cycles, sp);
         return;
     }
 
@@ -225,7 +252,9 @@ static void handleCommand(char* line) {
         PidGains zn = tuningZN(ku, tu);
         PidGains tl = tuningTL(ku, tu);
         PidGains cc = tuningCC(ku, tu);
-        Serial.printf("[Tune] Ku=%.3f Tu=%.3f s\n", ku, tu);
+        Serial.printf("[Tune] planta=%s Ku=%.3f Tu=%.3f s\n",
+                      autotuneGetPlant() == AUTOTUNE_PLANT_POSITION ? "posicao" : "velocidade",
+                      ku, tu);
         Serial.printf("[Tune] ZN Kp=%.3f Ki=%.3f Kd=%.3f\n", zn.kp, zn.ki, zn.kd);
         Serial.printf("[Tune] TL Kp=%.3f Ki=%.3f Kd=%.3f\n", tl.kp, tl.ki, tl.kd);
         Serial.printf("[Tune] CC Kp=%.3f Ki=%.3f Kd=%.3f\n", cc.kp, cc.ki, cc.kd);

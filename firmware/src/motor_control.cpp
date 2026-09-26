@@ -73,12 +73,33 @@ void motorSetDirection(int direction) {
             digitalWrite(MOTOR_DIR_PIN2, HIGH);
             break;
 
+        case MOTOR_DIR_BRAKE:
+            // L298N: EN em nível alto + ambas as entradas HIGH curto-circui-
+            // tam as fases do motor — freio dinâmico. O PWM precisa ficar
+            // em nível alto para habilitar o driver (EN=0 seria roda-livre).
+            digitalWrite(MOTOR_DIR_PIN1, HIGH);
+            digitalWrite(MOTOR_DIR_PIN2, HIGH);
+            analogWrite(MOTOR_PWM_PIN, MOTOR_PWM_RANGE);
+            break;
+
         case MOTOR_DIR_STOP:
         default:
             digitalWrite(MOTOR_DIR_PIN1, LOW);
             digitalWrite(MOTOR_DIR_PIN2, LOW);
             break;
     }
+}
+
+/**
+ * Freio dinâmico: trava o eixo no lugar (ambas as fases em HIGH).
+ * Usado pela malha de posição quando a saída está abaixo da zona morta
+ * do motor — o freio mata a inércia que causava o overshoot de cada
+ * "chute" do bang-bang, e segura o eixo firme parado.
+ */
+void motorBrake() {
+    currentDirection = MOTOR_DIR_BRAKE;
+    currentSpeed = 0;            // sem acionamento; o PWM alto é só o EN do freio
+    motorSetDirection(MOTOR_DIR_BRAKE);
 }
 
 bool motorDirInverted() {
@@ -93,11 +114,20 @@ void motorCalibrateDirection() {
 
     long pulsesBefore = encoderGetPulses();
 
-    // Pulso curto a 100% no sentido forward ATUAL (mapa ainda padrão)
+    // Pulso curto e SUAVE no sentido forward ATUAL (mapa ainda padrão).
+    // Duty deliberadamente moderado (ver MOTOR_CALIB_DUTY): o objetivo é
+    // só ler a direção dos pulsos — o eixo deve girar poucos graus, não
+    // disparar a 1950 RPM (aquele pulso parecia overshoot no gráfico).
     digitalWrite(MOTOR_DIR_PIN1, HIGH);
     digitalWrite(MOTOR_DIR_PIN2, LOW);
+    analogWrite(MOTOR_PWM_PIN, map(MOTOR_CALIB_DUTY, 0, MOTOR_MAX_SPEED, 0, MOTOR_PWM_RANGE));
+    delay(MOTOR_CALIB_MS);
+    // FREIA imediatamente: sem isso o eixo continua de inércia depois do
+    // pulso e o giro total fica várias vezes maior que o pulso.
+    digitalWrite(MOTOR_DIR_PIN1, HIGH);
+    digitalWrite(MOTOR_DIR_PIN2, HIGH);
     analogWrite(MOTOR_PWM_PIN, MOTOR_PWM_RANGE);
-    delay(150);
+    delay(MOTOR_CALIB_BRAKE_MS);
     analogWrite(MOTOR_PWM_PIN, 0);
     digitalWrite(MOTOR_DIR_PIN1, LOW);
     digitalWrite(MOTOR_DIR_PIN2, LOW);

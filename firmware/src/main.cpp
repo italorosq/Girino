@@ -177,15 +177,33 @@ void controlTick(float rpm, float dt) {
     if (verbose) lastTelemetry = nowMs;
 
     if (autotuneIsRunning()) {
-        // Relay é unidirecional (só horário): usa o módulo da velocidade
-        // para ficar imune à inversão de fiação motor/encoder.
-        float rpmAbs = fabs(rpm);
-        autotuneCompute(rpmAbs, dt);
-        float out = autotuneGetRelayOutput();
-        motorSetDirection(MOTOR_DIR_FORWARD);
-        motorSetSpeed((int)out);
-        recordResponse(millis() - responseStart, rpmAbs);
-        if (verbose) Serial.printf("[AutoTune] RPM=%.0f relay=%.0f%%\n", rpmAbs, out);
+        if (autotuneGetPlant() == AUTOTUNE_PLANT_POSITION) {
+            // Relay bidirecional na malha de posição: oscila em torno do
+            // alvo em graus. Saída com sinal define o sentido de giro.
+            float angle = encoderGetAngle();
+            autotuneCompute(angle, dt);
+            float out = autotuneGetRelayOutput();
+            if (out >= 0.0) {
+                motorSetDirection(MOTOR_DIR_FORWARD);
+                motorSetSpeed((int)out);
+            } else {
+                motorSetDirection(MOTOR_DIR_REVERSE);
+                motorSetSpeed((int)(-out));
+            }
+            recordResponse(millis() - responseStart, angle);
+            if (verbose) Serial.printf("[AutoTune] Alvo=%.1f Angulo=%.1f relay=%.0f%%\n",
+                                       posGetTarget(), angle, out);
+        } else {
+            // Relay unidirecional na malha de velocidade: usa o módulo da
+            // velocidade para ficar imune à inversão de fiação motor/encoder.
+            float rpmAbs = fabs(rpm);
+            autotuneCompute(rpmAbs, dt);
+            float out = autotuneGetRelayOutput();
+            motorSetDirection(MOTOR_DIR_FORWARD);
+            motorSetSpeed((int)out);
+            recordResponse(millis() - responseStart, rpmAbs);
+            if (verbose) Serial.printf("[AutoTune] RPM=%.0f relay=%.0f%%\n", rpmAbs, out);
+        }
 
         // Experimento terminou?
         if (autotuneIsDone() || autotuneIsFailed()) {
@@ -193,15 +211,54 @@ void controlTick(float rpm, float dt) {
             motorSetDirection(MOTOR_DIR_STOP);
         }
     } else if (posIsRunning()) {
-        // Malha de posição: saída com sinal define o sentido de giro
+        // Malha de posição — atuação em camadas (bang-bang com passos):
+        //   1. deadband (±2°), ou o PID pedindo repouso -> FREIO dinâmico;
+        //   2. perto do alvo (< 30°): PASSOS discretos — KICK ticks de
+        //      chute + REST ticks de freio; direção pelo SINAL DO ERRO;
+        //   3. longe: duty fixo POS_MAX_DUTY (65%) — NUNCA 100%: o soco
+        //      com ciclos de freio a 50 Hz levou o L298N ao desligamento
+        //      térmico na bancada (eixo travou a 171° além do alvo).
+        static int softPhase = 0;
         float angle = encoderGetAngle();
+        float error = posGetTarget() - angle;
         float out = posCompute(angle, dt);
-        if (out >= 0.0) {
-            motorSetDirection(MOTOR_DIR_FORWARD);
-            motorSetSpeed((int)out);
+        float rpmAbs = fabsf(rpm);
+
+        if (fabsf(error) <= POS_DEADBAND_DEG || fabsf(out) < POS_DRIVE_EPS) {
+            motorBrake();
+            softPhase = 0;
+        } else if (fabsf(error) < POS_BRAKE_ZONE_DEG && rpmAbs > POS_BRAKE_ZONE_RPM) {
+            // Frenagem antecipada: ainda longe do alvo mas em movimento —
+            // freia ANTES de entrar na zona de passos, senão a velocidade
+            // de entrada atravessa o alvo (overshoot).
+            motorBrake();
+            softPhase = 0;
+        } else if (fabsf(error) < POS_SOFT_NEAR_DEG) {
+            if (softPhase < POS_SOFT_KICK_TICKS) {
+                if (error > 0) {
+                    motorSetDirection(MOTOR_DIR_FORWARD);
+                    motorSetSpeed(POS_MAX_DUTY);
+                } else {
+                    motorSetDirection(MOTOR_DIR_REVERSE);
+                    motorSetSpeed(POS_MAX_DUTY);
+                }
+                softPhase++;
+            } else if (softPhase < POS_SOFT_KICK_TICKS + POS_SOFT_REST_TICKS) {
+                motorBrake();
+                softPhase++;
+            } else {
+                softPhase = 0;
+            }
         } else {
-            motorSetDirection(MOTOR_DIR_REVERSE);
-            motorSetSpeed((int)(-out));
+            softPhase = 0;
+            // Direção pela saída do PID (sinal), duty na região confiável
+            if (out >= 0.0) {
+                motorSetDirection(MOTOR_DIR_FORWARD);
+                motorSetSpeed(POS_MAX_DUTY);
+            } else {
+                motorSetDirection(MOTOR_DIR_REVERSE);
+                motorSetSpeed(POS_MAX_DUTY);
+            }
         }
         recordResponse(millis() - responseStart, angle);
         if (verbose) Serial.printf("[Pos] Alvo=%.1f Angulo=%.1f Out=%.0f%%\n", posGetTarget(), angle, out);
@@ -418,6 +475,11 @@ String pidConfigToJson() {
     json += "\"ki\":" + String(pidGetKi(), 4) + ",";
     json += "\"kd\":" + String(pidGetKd(), 4) + ",";
     json += "\"setpoint\":" + String(pidGetSetpoint(), 1) + ",";
+    json += "\"running\":" + String(pidIsRunning() ? "true" : "false") + ",";
+    // Leitura ao vivo para a interface (didático): medida, erro e saída
+    json += "\"measurement\":" + String(pidIsRunning() ? fabs(encoderGetRPM()) : 0.0f, 1) + ",";
+    json += "\"error\":" + String(pidIsRunning() ? pidGetSetpoint() - fabs(encoderGetRPM()) : 0.0f, 1) + ",";
+    json += "\"output\":" + String(pidGetOutput(), 1) + ",";
     json += "\"mode\":\"";
     json += pidIsRunning() ? "pid" : "open-loop";
     json += "\"";
@@ -500,7 +562,10 @@ void handleAutotune() {
         else if (autotuneIsDone()) json += "done";
         else if (autotuneIsFailed()) json += "failed";
         else json += "idle";
+        json += "\",\"plant\":\"";
+        json += (autotuneGetPlant() == AUTOTUNE_PLANT_POSITION) ? "position" : "speed";
         json += "\",\"progress\":" + String(autotuneGetProgress());
+        json += ",\"output\":" + String(autotuneGetRelayOutput(), 1);
 
         if (autotuneIsDone()) {
             float ku = autotuneGetKu();
@@ -517,17 +582,53 @@ void handleAutotune() {
         return;
     }
 
-    // POST: inicia o experimento
+    // POST: inicia o experimento.
+    // plant=speed    (padrão) — relé unidirecional bias±d em torno de um RPM
+    // plant=position — relé simétrico ±d em torno do alvo em graus
+    String plantStr = server.hasArg("plant") ? server.arg("plant") : String("speed");
+    bool plantPos = (plantStr == "position");
+
     float relay = server.hasArg("relay_amplitude")
                       ? server.arg("relay_amplitude").toFloat()
-                      : (float)AUTOTUNE_DEFAULT_RELAY;
+                      : (float)(plantStr == "position" ? AUTOTUNE_POS_DEFAULT_RELAY
+                                                       : AUTOTUNE_DEFAULT_RELAY);
     float bias = server.hasArg("bias")
-                     ? server.arg("bias").toFloat()
-                     : (float)AUTOTUNE_DEFAULT_BIAS;
+                      ? server.arg("bias").toFloat()
+                      : (float)AUTOTUNE_DEFAULT_BIAS;
     int cycles = server.hasArg("cycles")
-                     ? server.arg("cycles").toInt()
-                     : AUTOTUNE_DEFAULT_CYCLES;
+                      ? server.arg("cycles").toInt()
+                      : AUTOTUNE_DEFAULT_CYCLES;
 
+    if (plantStr == "position") {
+        // Alvo em graus: argumento explícito > alvo atual do PID de posição
+        float target = server.hasArg("target") ? server.arg("target").toFloat()
+                                               : posGetTarget();
+
+        if (relay < AUTOTUNE_POS_MIN_RELAY || relay > 100.0 ||
+            cycles < 1 || cycles > 8 ||
+            target < -POS_MAX_TARGET_DEG || target > POS_MAX_TARGET_DEG) {
+            server.send(400, "application/json", "{\"error\":\"invalid autotune parameters\"}");
+            return;
+        }
+
+        if (relay < 65.0) {
+            Serial.println("[AutoTune] Aviso: relay abaixo da zona morta (~60%) pode nao oscilar");
+        }
+
+        pidStop();    // relay assume o motor
+        posStop();
+        responseUnit = "deg";
+        resetResponseBuffer();
+        autotuneStart(AUTOTUNE_PLANT_POSITION, relay, 0.0, cycles, target);
+
+        String json = "{\"ok\":true,\"plant\":\"position\",\"relay\":" + String(relay, 1);
+        json += ",\"cycles\":" + String(cycles);
+        json += ",\"target\":" + String(target, 1) + "}";
+        server.send(200, "application/json", json);
+        return;
+    }
+
+    // --- plant=speed (fluxo original) ---
     // Setpoint: argumento explícito > último setpoint do PID > padrão
     float setpoint;
     if (server.hasArg("setpoint")) {
@@ -548,9 +649,9 @@ void handleAutotune() {
     posStop();
     responseUnit = "rpm";
     resetResponseBuffer();
-    autotuneStart(relay, bias, cycles, setpoint);
+    autotuneStart(AUTOTUNE_PLANT_SPEED, relay, bias, cycles, setpoint);
 
-    String json = "{\"ok\":true,\"relay\":" + String(relay, 1);
+    String json = "{\"ok\":true,\"plant\":\"speed\",\"relay\":" + String(relay, 1);
     json += ",\"bias\":" + String(bias, 1);
     json += ",\"cycles\":" + String(cycles);
     json += ",\"setpoint\":" + String(setpoint, 1) + "}";
@@ -565,7 +666,11 @@ void handlePidTuning() {
 
     float ku = autotuneGetKu();
     float tu = autotuneGetTu();
-    String json = "{\"ku\":" + String(ku, 3) + ",\"tu\":" + String(tu, 3);
+    // A planta identificada determina onde os ganhos se aplicam:
+    // speed -> pidConfigure (RPM) | position -> posConfigure (graus)
+    String json = "{\"plant\":\"";
+    json += (autotuneGetPlant() == AUTOTUNE_PLANT_POSITION) ? "position" : "speed";
+    json += "\",\"ku\":" + String(ku, 3) + ",\"tu\":" + String(tu, 3);
     json += ",\"zn\":" + gainsToJson(tuningZN(ku, tu));
     json += ",\"tl\":" + gainsToJson(tuningTL(ku, tu));
     json += ",\"cc\":" + gainsToJson(tuningCC(ku, tu));
@@ -602,7 +707,12 @@ void handlePidTuningApply() {
         return;
     }
 
-    pidConfigure(g.kp, g.ki, g.kd, pidGetSetpoint());
+    // Aplica os ganhos no controlador correspondente à planta identificada
+    if (autotuneGetPlant() == AUTOTUNE_PLANT_POSITION) {
+        posConfigure(g.kp, g.ki, g.kd, posGetTarget());
+    } else {
+        pidConfigure(g.kp, g.ki, g.kd, pidGetSetpoint());
+    }
     server.send(200, "application/json", gainsToJson(g));
 }
 
@@ -611,12 +721,17 @@ void handlePidTuningApply() {
 // =============================================================
 
 String posConfigToJson() {
+    float angle = encoderGetAngle();
     String json = "{";
     json += "\"kp\":" + String(posGetKp(), 4) + ",";
     json += "\"ki\":" + String(posGetKi(), 4) + ",";
     json += "\"kd\":" + String(posGetKd(), 4) + ",";
     json += "\"target\":" + String(posGetTarget(), 1) + ",";
-    json += "\"angle\":" + String(encoderGetAngle(), 1) + ",";
+    json += "\"angle\":" + String(angle, 1) + ",";
+    json += "\"running\":" + String(posIsRunning() ? "true" : "false") + ",";
+    // Leitura ao vivo para a interface (didático): erro e saída
+    json += "\"error\":" + String(posIsRunning() ? posGetTarget() - angle : 0.0f, 1) + ",";
+    json += "\"output\":" + String(posGetOutput(), 1) + ",";
     json += "\"mode\":\"";
     json += posIsRunning() ? "position" : "open-loop";
     json += "\"";

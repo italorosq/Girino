@@ -44,6 +44,18 @@
 #define MOTOR_PWM_RANGE    255     // Resolução PWM (8-bit)
 #define MOTOR_MAX_SPEED    100     // Velocidade máxima em %
 
+// --- Pulso de calibração do sentido da fiação ---
+// Pulso curto no primeiro movimento após o boot para descobrir o sentido
+// físico motor/encoder. Curva real medida na bancada: zona morta ~65%,
+// joelho íngreme (70% -> ~400 RPM) — não dá para calibrar devagar sem o
+// atrito estático travar. Estratégia: pulso de 70% por 50 ms (giro
+// ~45-60°, ~80+ pulsos — limiar: 30) SEGUIDO DE FREIO, que mata a
+// inércia (antes, roda-livre + 100%/150 ms girava 400°+ = mais de uma
+// volta, parecia overshoot no gráfico logo ao iniciar).
+#define MOTOR_CALIB_DUTY     70
+#define MOTOR_CALIB_MS       50
+#define MOTOR_CALIB_BRAKE_MS 40
+
 // --- Encoder LPD3806-600BM ---
 #define ENCODER_PPR        600     // Pulsos por revolução
 #define ENCODER_SAMPLE_MS  100     // Intervalo de amostragem para cálculo de RPM
@@ -57,7 +69,8 @@
 // --- Direções do motor ---
 #define MOTOR_DIR_FORWARD   1
 #define MOTOR_DIR_REVERSE  -1
-#define MOTOR_DIR_STOP      0
+#define MOTOR_DIR_STOP      0    // roda-livre (L298N: IN3=IN4=LOW, EN=0)
+#define MOTOR_DIR_BRAKE     2    // freio dinâmico (L298N: IN3=IN4=HIGH)
 
 // --- PID / Auto-Tune ---
 #define PID_SAMPLE_MS       20      // Período de amostragem do PID (50 Hz)
@@ -81,6 +94,47 @@
 #define POS_OUTPUT_MIN     -100.0   // Saída mínima (-100% = reverso)
 #define POS_DEADBAND_DEG    2.0     // Zona morta em graus
 #define POS_MAX_TARGET_DEG  3600.0  // Limite de alvo (10 voltas)
+// Zona morta do MOTOR em duty (medida na bancada ~60%): abaixo disso o
+// PWM não vence o atrito estático. Na malha de posição, uma saída nessa
+// faixa não consegue mover nada — em vez de roda-livre, o firmware
+// FREIA o eixo (mata a inércia que causava o overshoot de cada chute).
+#define POS_MOTOR_DEADZONE_DUTY 60.0
+// Suavização perto do alvo: o motor real escapa rápido demais e chutes a
+// 100% passam do alvo por dezenas de graus (caça ±35° medida). Com erro
+// pequeno, o duty é limitado a pouco acima da zona morta — cada chute
+// vira um passo curto e a caça assenta dentro da deadband (±2°).
+#define POS_SOFT_NEAR_DEG   30.0  // erro abaixo disso ativa o modo passo
+#define POS_SOFT_DUTY       65.0  // duty dos passos perto do alvo (% PWM)
+// Passos discretos perto do alvo (a 50 Hz): KICK ticks de chute + REST
+// de freio — cada passo move poucos graus e o eixo assenta na deadband.
+// Rest longo (160 ms): o L298N sofre com ciclos freio/acionamento muito
+// rápidos (desligamento térmico medido na bancada) — o descanso esfria
+// o driver e elimina o zumbido.
+#define POS_SOFT_KICK_TICKS 1
+#define POS_SOFT_REST_TICKS 8
+// Duty da malha de posição. Medido na bancada (curva real): abaixo de
+// ~66% o motor trava no atrito estático (movimento errático), 70% já
+// responde com ~400 RPM. O duty fica na região CONFIÁVEL.
+#define POS_MAX_DUTY        70.0
+// Zona de frenagem antecipada: chegando perto do alvo (erro abaixo de
+// 60°) e ainda em movimento (> 100 RPM), FREIA antes de entrar na zona
+// de passos — a velocidade de entrada é o que gerava o overshoot.
+#define POS_BRAKE_ZONE_DEG  60.0
+#define POS_BRAKE_ZONE_RPM  100.0
+// O PID "pede movimento" a partir desta saída; abaixo disso (ganhos
+// zerados ou erro ~0) o eixo fica freado.
+#define POS_DRIVE_EPS       1.0
+// Teto do TERMO INTEGRAL da posição (em % de saída): mantém a parcela
+// integral abaixo da zona morta do motor (60%). Sem isso, com erro ~0 o
+// termo integral sozinho sustenta a saída acima de 60% e o motor segue
+// acionado, rastejando além do alvo. O Kp cuida da aproximação; o Ki
+// só precisa corrigir desvios pequenos.
+#define POS_INTEGRAL_TERM_MAX 55.0
+// Teto do TERMO DERIVATIVO da posição: com o eixo a toda velocidade o
+// de/dt passa de 10.000 °/s e o D sozinho inverteria a saída a cada tick
+// (slam de ±100%) — a causa principal da caça ±35° na bancada. Clampear
+// a contribuição do D mantém o amortecimento sem o soco.
+#define POS_DERIVATIVE_TERM_MAX 30.0
 
 // --- Auto-Tune (relay feedback) ---
 // O relay alterna entre (bias + amplitude) e (bias - amplitude). O bias
@@ -95,5 +149,14 @@
 #define AUTOTUNE_DEFAULT_SETPOINT 1000.0 // Setpoint padrão do experimento (RPM)
 #define AUTOTUNE_MIN_CROSS_MS   60  // Debounce de cruzamentos (ms) — ignora ruído
 #define AUTOTUNE_TIMEOUT_MS     30000 // Timeout de segurança (30 s)
+// Timeout do autotune de POSIÇÃO: os ciclos da malha de ângulo são muito
+// mais lentos que os de velocidade (vários segundos por oscilação),
+// então 3 ciclos não cabem nos 30 s do autotune de velocidade.
+#define AUTOTUNE_TIMEOUT_MS_POS 90000 // Timeout de segurança posição (90 s)
+// Amplitude padrão do relay de posição (± d, simétrico). Fica bem acima
+// da zona morta (~60%), garantindo movimento nos dois sentidos sem
+// bater a 100% de duty.
+#define AUTOTUNE_POS_DEFAULT_RELAY 90 // ± % PWM
+#define AUTOTUNE_POS_MIN_RELAY     40 // abaixo de ~60% (zona morta) não oscila
 
 #endif // CONFIG_H

@@ -19,12 +19,14 @@
 #include "pid_autotune.h"
 
 // --- Configuration (runtime, set at autotuneStart) ---
+static AutotunePlant plant = AUTOTUNE_PLANT_SPEED; // which loop is identified
 static float relayAmp = 0.0;       // d in % PWM (nominal amplitude)
-static float relayHigh = 0.0;      // output while below setpoint (% PWM)
-static float relayLow = 0.0;       // output while at/above setpoint (% PWM)
+static float relayHigh = 0.0;      // output while below setpoint (% PWM, com sinal na posição)
+static float relayLow = 0.0;       // output while at/above setpoint (% PWM, com sinal na posição)
 static float relayStep = 0.0;      // effective step d = (high - low) / 2
 static int requiredPeriods = 3;    // number of full periods to average
-static float setpoint = 0.0;       // RPM
+static float setpoint = 0.0;       // RPM (speed) or degrees (position)
+static unsigned long timeoutMs = AUTOTUNE_TIMEOUT_MS;
 
 // --- State machine ---
 static AutotuneState state = AUTOTUNE_IDLE;
@@ -37,8 +39,8 @@ static unsigned long lastPeriodAnchor = 0;      // ms (cruzamento par — âncor
 static int crossCount = 0;              // total sign flips of the error
 static unsigned long periodSum = 0;     // sum of full periods (ms)
 static int periodCount = 0;             // number of full periods collected
-static float rpmMin = 0.0;              // min RPM of current limit cycle
-static float rpmMax = 0.0;              // max RPM of current limit cycle
+static float measMin = 0.0;              // min measurement of current limit cycle (RPM ou graus)
+static float measMax = 0.0;              // max measurement of current limit cycle (RPM ou graus)
 
 // --- Current relay output ---
 static float relayOutput = 0.0;
@@ -55,23 +57,37 @@ void autotuneInit() {
     relayOutput = 0.0;
     resultKu = 0.0;
     resultTu = 0.0;
+    plant = AUTOTUNE_PLANT_SPEED;
     Serial.println("[AutoTune] Inicializado");
 }
 
-void autotuneStart(float newRelayAmp, float bias, int cycles, float newSetpoint) {
+void autotuneStart(AutotunePlant newPlant, float newRelayAmp, float bias, int cycles, float newSetpoint) {
+    plant = newPlant;
     relayAmp = newRelayAmp;
     requiredPeriods = (cycles < 1) ? 3 : cycles;
     setpoint = newSetpoint;
 
-    // Relay com pedestal: estados alto/baixo em torno do bias.
-    // O bias precisa vencer a zona morta do motor para que a oscilação
-    // aconteça de verdade (o motor não pode parar no estado baixo).
-    relayHigh = bias + relayAmp;
-    relayLow = bias - relayAmp;
-    if (relayHigh > 100.0) relayHigh = 100.0;
-    if (relayLow < 0.0) relayLow = 0.0;
-    // Amplitude efetiva do degrau (usada no cálculo de Ku)
-    relayStep = (relayHigh - relayLow) / 2.0;
+    if (plant == AUTOTUNE_PLANT_POSITION) {
+        // Relé simétrico bidirecional: +d (horário) / -d (anti-horário)
+        // em torno de ZERO. A planta de posição é bidirecional — não há
+        // pedestal; o único requisito é d superar a zona morta para que
+        // AMBOS os estados do relé movam o motor.
+        relayHigh = relayAmp;   // +d  (forward)
+        relayLow = -relayAmp;   // -d  (reverse)
+        relayStep = relayAmp;
+        timeoutMs = AUTOTUNE_TIMEOUT_MS_POS;
+    } else {
+        // Relay com pedestal: estados alto/baixo em torno do bias.
+        // O bias precisa vencer a zona morta do motor para que a oscilação
+        // aconteça de verdade (o motor não pode parar no estado baixo).
+        relayHigh = bias + relayAmp;
+        relayLow = bias - relayAmp;
+        if (relayHigh > 100.0) relayHigh = 100.0;
+        if (relayLow < 0.0) relayLow = 0.0;
+        // Amplitude efetiva do degrau (usada no cálculo de Ku)
+        relayStep = (relayHigh - relayLow) / 2.0;
+        timeoutMs = AUTOTUNE_TIMEOUT_MS;
+    }
 
     startTime = millis();
     lastCrossTime = startTime;
@@ -80,26 +96,38 @@ void autotuneStart(float newRelayAmp, float bias, int cycles, float newSetpoint)
     crossCount = 0;
     periodSum = 0;
     periodCount = 0;
-    rpmMin = 0.0;
-    rpmMax = 0.0;
+    measMin = 0.0;
+    measMax = 0.0;
     relayOutput = 0.0;
     resultKu = 0.0;
     resultTu = 0.0;
     prevError = 1.0;
 
     state = AUTOTUNE_RUNNING;
-    Serial.print("[AutoTune] Iniciado: d=");
+    Serial.print("[AutoTune] Iniciado (");
+    Serial.print(plant == AUTOTUNE_PLANT_POSITION ? "posicao" : "velocidade");
+    Serial.print("): d=");
     Serial.print(relayAmp);
-    Serial.print("% bias=");
-    Serial.print(bias);
-    Serial.print("% (saida ");
-    Serial.print(relayLow);
-    Serial.print("/");
-    Serial.print(relayHigh);
-    Serial.print("%) ciclos=");
+    if (plant == AUTOTUNE_PLANT_SPEED) {
+        Serial.print("% bias=");
+        Serial.print(bias);
+        Serial.print("% (saida ");
+        Serial.print(relayLow);
+        Serial.print("/");
+        Serial.print(relayHigh);
+        Serial.print("%)");
+    } else {
+        Serial.print("% simetrico (+");
+        Serial.print(relayHigh);
+        Serial.print("/");
+        Serial.print(relayLow);
+        Serial.print("%)");
+    }
+    Serial.print(" ciclos=");
     Serial.print(requiredPeriods);
     Serial.print(" SP=");
-    Serial.println(setpoint);
+    Serial.print(setpoint);
+    Serial.println(plant == AUTOTUNE_PLANT_POSITION ? " graus" : " RPM");
 }
 
 void autotuneCancel() {
@@ -118,12 +146,16 @@ void autotuneCompute(float measurement, float dt) {
 
     unsigned long now = millis();
 
-    // O relay só aciona em um sentido (horário) — velocidade negativa
-    // é ruído de medição e não deve poluir o envelope da oscilação.
-    if (measurement < 0.0) measurement = 0.0;
+    if (plant == AUTOTUNE_PLANT_SPEED) {
+        // O relay só aciona em um sentido (horário) — velocidade negativa
+        // é ruído de medição e não deve poluir o envelope da oscilação.
+        // Na POSIÇÃO o ângulo com sinal é legítimo (oscilação bidirecional
+        // em torno do alvo) e NÃO deve ser clampeado.
+        if (measurement < 0.0) measurement = 0.0;
+    }
 
     // --- Safety timeout ---
-    if (now - startTime > AUTOTUNE_TIMEOUT_MS) {
+    if (now - startTime > timeoutMs) {
         Serial.println("[AutoTune] Timeout — sem oscilacao suficiente");
         state = AUTOTUNE_FAILED;
         relayOutput = 0.0;
@@ -138,8 +170,8 @@ void autotuneCompute(float measurement, float dt) {
     // Só a partir do 2º cruzamento: o primeiro semiciclo (partida) não
     // faz parte do ciclo limite. O envelope é reiniciado no cruzamento 2.
     if (crossCount >= 2) {
-        if (measurement < rpmMin) rpmMin = measurement;
-        if (measurement > rpmMax) rpmMax = measurement;
+        if (measurement < measMin) measMin = measurement;
+        if (measurement > measMax) measMax = measurement;
     }
 
     // --- Detect setpoint crossing (error sign flip) ---
@@ -152,8 +184,8 @@ void autotuneCompute(float measurement, float dt) {
             // Reinicia o envelope no 2º cruzamento: dali em diante a
             // oscilação é o ciclo limite que queremos medir.
             if (crossCount == 2) {
-                rpmMin = measurement;
-                rpmMax = measurement;
+                measMin = measurement;
+                measMax = measurement;
             }
 
             // Um período completo = intervalo entre cruzamentos PARES
@@ -166,7 +198,7 @@ void autotuneCompute(float measurement, float dt) {
                 }
                 lastPeriodAnchor = now;
             }
-            Serial.printf("[AutoTune] cruzamento %d: RPM=%.0f (%.0f ms)\n",
+            Serial.printf("[AutoTune] cruzamento %d: medida=%.1f (%.0f ms)\n",
                           crossCount, measurement, (float)(now - lastAcceptedCrossTime));
             lastAcceptedCrossTime = now;
         }
@@ -177,18 +209,20 @@ void autotuneCompute(float measurement, float dt) {
     // --- Finish when enough periods collected ---
     if (periodCount >= requiredPeriods && periodCount > 0) {
         float tu = (float)periodSum / (float)periodCount / 1000.0; // seconds
-        float a = (rpmMax - rpmMin) / 2.0; // oscillation amplitude (RPM)
+        float a = (measMax - measMin) / 2.0; // oscillation amplitude (RPM ou graus, conforme a planta)
 
         if (a > 0.01) {
             resultTu = tu;
-            // Ku = 4*d / (pi*a), com d = amplitude efetiva do relay (% PWM)
+            // Ku = 4*d / (pi*a), com d = amplitude efetiva do relay (% PWM).
+            // Unidades do resultado: velocidade -> %/(RPM); posição -> %/°.
             resultKu = (4.0 * relayStep) / (PI * a);
 
             state = AUTOTUNE_DONE;
             Serial.print("[AutoTune] Concluido: Ku=");
             Serial.print(resultKu);
-            Serial.print(" Tu=");
-            Serial.println(resultTu);
+            Serial.print(plant == AUTOTUNE_PLANT_POSITION ? "%/deg Tu=" : " Tu=");
+            Serial.print(resultTu);
+            Serial.println("s");
         } else {
             Serial.println("[AutoTune] Falha — amplitude de oscilacao nula");
             state = AUTOTUNE_FAILED;
@@ -199,6 +233,10 @@ void autotuneCompute(float measurement, float dt) {
 
 float autotuneGetRelayOutput() {
     return relayOutput;
+}
+
+AutotunePlant autotuneGetPlant() {
+    return plant;
 }
 
 bool autotuneIsRunning() {

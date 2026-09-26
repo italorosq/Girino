@@ -27,6 +27,8 @@ secrets.h
 hardware/kicad/*-backups/
 hardware/kicad/*.bak
 hardware/kicad/*.bck
+hardware/kicad/*.lck
+hardware/kicad/.history/
 hardware/kicad/*-cache.lib
 hardware/kicad/*-rescue.lib
 hardware/kicad/fp-info-cache
