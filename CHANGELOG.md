@@ -7,6 +7,18 @@ e este projeto adota [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Corrigido (malha de posição v3)
+- **Overshoot e caça longa da posição eliminados por redesign da atuação** — a malha de posição v2 decidia o freio por zonas fixas (erro < 60°, RPM > 100) e usava o SINAL DA SAÍDA do PID para escolher o sentido; 5 causas combinadas:
+  1. o termo D (derivada da medição, teto ±30%) invertia o sinal da saída com o eixo em movimento — o firmware acionava a 70% **no sentido contrário** em vez de frear (caça sustentada perto da entrada da zona de passos);
+  2. o teto do integrador (55%) fazia o mesmo após um overshoot (bias contra a correção, dirigia para longe do alvo);
+  3. a margem fixa de 60° era MENOR que a distância de frenagem real (v·τ ≈ 100-145° a 400 RPM) — atravessava o alvo em toda aproximação rápida;
+  4. ciclo-limite na faixa 30-60°: freava acima de 100 RPM, re-acionava a 70% quando o RPM (atrasado 80 ms) caía — ping-pong em torno do limiar;
+  5. passos usavam 70% em vez dos 65% validados.
+- **Nova atuação (profiler de aproximação)**: direção SEMPRE pelo sinal do erro; freia quando a distância de parada predita `RPM×6×POS_BRAKE_TAU_S (0.10 s) + POS_STOP_MARGIN_DEG (4°)` >= erro restante — o teto de velocidade cai automaticamente ao aproximar (ex.: 400 RPM só é permitido a 240° do alvo, 100 RPM a 64°); zona de passos kick/rest reduzida para 15° (`POS_STEP_ZONE_DEG`), alcançada devagar; passos a `POS_SOFT_DUTY 65%`.
+- RPM da malha de posição com janela CURTA (2 ticks = 40 ms, `POS_RPM_WINDOW_TICKS`) sem limitador de slew — decisões de freio com a velocidade "agora"; a janela de 80 ms + slew 8000 RPM/s ficam para o PID de velocidade.
+- PID de posição: integrador zerado ao cruzar o alvo (anti-windup de troca de sinal); a saída continua calculada só para telemetria/didática (gráfico/API).
+- Simulador do mock (`app.js`) espelha exatamente a nova máquina (mesmas constantes).
+
 ### Adicionado
 - Exemplo `05-pid-web-test` com firmware standalone para teste PID via interface web
 - Painel web no exemplo com ajuste em tempo real de `setpoint`, `Kp`, `Ki`, `Kd` e grafico de resposta

@@ -235,32 +235,25 @@ bool posIsRunning() {
 float posCompute(float measurementDeg, float dt) {
     if (posPid.state != PID_RUNNING) return 0.0;
 
-    // Zona morta: erro pequeno -> saída zero (evita trepidação).
-    // O integrador é mantido para não perder o esforço acumulado.
+    // Anti-windup de posição: ao cruzar o alvo (sinal do erro troca) o
+    // integral carregado do lado anterior viraria um bias contra a
+    // correção — zera ao detectar a inversão.
     float error = posPid.setpoint - measurementDeg;
+    static float prevError = 0.0;
+    if (prevError != 0.0 && ((error > 0.0) != (prevError > 0.0))) {
+        posPid.integral = 0.0;
+    }
+    prevError = error;
+
+    // Zona morta: erro pequeno -> saída zero (evita trepidação).
+    // O cálculo continua alimentando o gráfico/API; a ATUAÇÃO real
+    // (controlTick em main.cpp) usa erro/velocidade, não esta saída.
     if (fabs(error) <= POS_DEADBAND_DEG) {
         posPid.output = 0.0;
         posPid.prevMeasurement = measurementDeg;
         return 0.0;
     }
 
-    // Limites de atuação DINÂMICOS: perto do alvo o duty é limitado a
-    // POS_SOFT_DUTY (logo acima da zona morta do motor) — chutes curtos
-    // que assentam na deadband em vez de escapar por dezenas de graus.
-    // Longe do alvo, atuação plena (±100%).
-    if (fabs(error) < POS_SOFT_NEAR_DEG) {
-        posPid.outMax = POS_SOFT_DUTY;
-        posPid.outMin = -POS_SOFT_DUTY;
-    } else {
-        posPid.outMax = POS_OUTPUT_MAX;
-        posPid.outMin = POS_OUTPUT_MIN;
-    }
-
-    // NOTA DIDÁTICA: neste motor a zona morta é alta (~60% de duty), o
-    // que torna o controle de posição "bang-bang" (cada acionamento
-    // mínimo move ~230 RPM). O freio dinâmico (ver main.cpp) e o teto do
-    // termo integral (POS_INTEGRAL_TERM_MAX) amansam a caça; com um
-    // driver adequado (zona morta ~10-20%) o mesmo PID converge suavemente.
     return coreCompute(posPid, measurementDeg, dt);
 }
 

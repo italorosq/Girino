@@ -99,11 +99,6 @@
 // faixa não consegue mover nada — em vez de roda-livre, o firmware
 // FREIA o eixo (mata a inércia que causava o overshoot de cada chute).
 #define POS_MOTOR_DEADZONE_DUTY 60.0
-// Suavização perto do alvo: o motor real escapa rápido demais e chutes a
-// 100% passam do alvo por dezenas de graus (caça ±35° medida). Com erro
-// pequeno, o duty é limitado a pouco acima da zona morta — cada chute
-// vira um passo curto e a caça assenta dentro da deadband (±2°).
-#define POS_SOFT_NEAR_DEG   30.0  // erro abaixo disso ativa o modo passo
 #define POS_SOFT_DUTY       65.0  // duty dos passos perto do alvo (% PWM)
 // Passos discretos perto do alvo (a 50 Hz): KICK ticks de chute + REST
 // de freio — cada passo move poucos graus e o eixo assenta na deadband.
@@ -111,19 +106,34 @@
 // rápidos (desligamento térmico medido na bancada) — o descanso esfria
 // o driver e elimina o zumbido.
 #define POS_SOFT_KICK_TICKS 1
-#define POS_SOFT_REST_TICKS 8
-// Duty da malha de posição. Medido na bancada (curva real): abaixo de
+#define POS_SOFT_REST_TICKS 8// Duty da malha de posição. Medido na bancada (curva real): abaixo de
 // ~66% o motor trava no atrito estático (movimento errático), 70% já
 // responde com ~400 RPM. O duty fica na região CONFIÁVEL.
 #define POS_MAX_DUTY        70.0
-// Zona de frenagem antecipada: chegando perto do alvo (erro abaixo de
-// 60°) e ainda em movimento (> 100 RPM), FREIA antes de entrar na zona
-// de passos — a velocidade de entrada é o que gerava o overshoot.
-#define POS_BRAKE_ZONE_DEG  60.0
-#define POS_BRAKE_ZONE_RPM  100.0
-// O PID "pede movimento" a partir desta saída; abaixo disso (ganhos
-// zerados ou erro ~0) o eixo fica freado.
-#define POS_DRIVE_EPS       1.0
+// Micro-passos perto do alvo (v3.1): um tick inteiro (20 ms) a 70% move
+// ~20° (medido em bancada) — grosseiro demais com deadband de ±2°. O
+// kick tem DURAÇÃO adaptativa em µs (abort fino no loop()) e o passo
+// converge para ~erro/3 graus medindo os pulsos de cada chute; kicks
+// que não movem o eixo (atrito estático, travado a 3.6° medido) crescem
+// automaticamente. Kick a 70% (região confiável — 65% não escapa).
+#define POS_MICRO_KICK_MIN_US 1500
+#define POS_MICRO_KICK_MAX_US 25000
+#define POS_MICRO_REST_MS     120
+// --- Aproximação por distância de parada predita (Posição v3) ---
+// A causa do overshoot era decidir o freio por zonas fixas (erro < 60°,
+// rpm > 100): a velocidade de entrada ficava maior que a distância de
+// frenagem. Agora freia quando v*tau >= erro (com margem) — o teto de
+// velocidade cai automaticamente ao aproximar, e a zona de passos só é
+// alcançada devagar. RPM x 6 = graus/s (1 rev = 360° = 60 s).
+// POS_BRAKE_TAU_S: constante de tempo do freio dinâmico (calibrada da
+// bancada: medir graus até parar após frear de 70%; tau = dist/(6·rpm)).
+#define POS_BRAKE_TAU_S     0.10
+#define POS_STOP_MARGIN_DEG 4.0    // margem além da deadband na predição
+#define POS_STEP_ZONE_DEG   15.0   // zona de passos kick/rest (era 30°)
+// RPM da malha de posição: janela CURTA (2 ticks = 40 ms) sem limitador
+// de slew — as decisões de freio precisam velociade "agora", não a média
+// atrasada de 80 ms. A janela de 4 ticks fica para o PID de velocidade.
+#define POS_RPM_WINDOW_TICKS 2
 // Teto do TERMO INTEGRAL da posição (em % de saída): mantém a parcela
 // integral abaixo da zona morta do motor (60%). Sem isso, com erro ~0 o
 // termo integral sozinho sustenta a saída acima de 60% e o motor segue
@@ -158,5 +168,11 @@
 // bater a 100% de duty.
 #define AUTOTUNE_POS_DEFAULT_RELAY 90 // ± % PWM
 #define AUTOTUNE_POS_MIN_RELAY     40 // abaixo de ~60% (zona morta) não oscila
+
+// Telemetria 50 Hz da malha de posição (debug em bancada): 1 = imprime
+// [PosV] a cada tick (só para diagnóstico; deixar 0 em produção).
+#ifndef POS_TRACE
+#define POS_TRACE 1
+#endif
 
 #endif // CONFIG_H

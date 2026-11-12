@@ -163,7 +163,8 @@ Girino/
 - O firmware tem **console serial** (115200): `help`, `status`, `enc`, `motor`, `pid`, `pos`, `autotune`, `tune` — permite controlar a bancada sem Wi-Fi
 - **Sentido motor/encoder é auto-calibrado** no primeiro movimento (pulso de teste): fiação invertida é corrigida em software; velocidade/auto-tune usam |RPM| e são imunes a polaridade
 - Bancada medida: zona morta do motor ~60% de duty (limita o controle de posição, que fica bang-bang) e 100% ≈ 1950 RPM; o relay do auto-tune usa bias 82% ± 18%
-- Curva real duty×velocidade medida: 65% ≈ 5 RPM (atrito estático, movimento errático), 70% ≈ 400 RPM (região confiável), 100% ≈ 2000+ RPM — a malha de posição usa duty 70% (`POS_MAX_DUTY`)
+- Curva real duty×velocidade medida: 65% ≈ 5 RPM (atrito estático, movimento errático), 70% ≈ 400 RPM (região confiável), 100% ≈ 2000+ RPM — a malha de posição usa duty 70% (`POS_MAX_DUTY`) no tramo longo e 65% (`POS_SOFT_DUTY`) nos passos finais
+- **Malha de posição v3 (profiler de aproximação)**: direção sempre pelo sinal do ERRO (nunca pelo sinal do PID — o termo D/inTEGRAL invertiam a saída em movimento e causavam caça); freia quando `RPM×6×POS_BRAKE_TAU_S (0.10) + POS_STOP_MARGIN_DEG (4°)` ≥ erro — teto de velocidade proporcional ao erro; zona de passos 15° (`POS_STEP_ZONE_DEG`), kick 1 tick a 65% + rest 8 ticks de freio; RPM da posição usa janela curta de 2 ticks (40 ms) sem slew (`POS_RPM_WINDOW_TICKS`) — o RPM atrasado de 80 ms retardava a frenagem (causa do overshoot); PID de posição vira telemetria (com zona morta de ~60% de duty, PID verdadeiro é impossível no L298N)
 - **Correia com folga**: erro residual de posição de ~1-2° é mecânico (backlash da correia), não do PID; deadband ±2° cobre
 - Pulso de calibração de sentido amaciado: 70% × 50ms + freio (`MOTOR_CALIB_*`) — antes girava 400°+ (mais de uma volta) e parecia overshoot no gráfico
 - Driver: **L298N** (queda de ~2 V é normal)

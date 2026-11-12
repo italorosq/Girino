@@ -90,8 +90,11 @@ class Simulator {
     this.posKd = 0.05;
     this.posIntegral = 0;
     this.posPrevAngle = 0;
+    this.posPrevError = null;  // p/ anti-windup de cruzamento de alvo
     this.posOutput = 0;
-    this._softPhase = 0;  // fase do chute suave (quota/pausa)
+    this._softPhase = 0;       // fase do chute suave (quota/pausa)
+    this.posRpmWindow = [0, 0];  // janela de 2 ticks (rpmPos do firmware)
+    this.posRpmIdx = 0;
 
     // Auto-tune
     this.autotuneRunning = false;
@@ -225,46 +228,56 @@ class Simulator {
   _updatePosition(dt) {
     const error = this.posTarget - this.angle;
 
-    // Zona morta didática em torno do alvo (como no firmware real)
+    // PID de posição só para telemetria (como no firmware): a ATUAÇÃO
+    // real usa erro/velocidade — a direção vem do SINAL DO ERRO.
+    // Anti-windup de posição: integral zerado ao cruzar o alvo.
+    if (this.posPrevError != null && (error > 0) !== (this.posPrevError > 0)) {
+      this.posIntegral = 0;
+    }
+    this.posPrevError = error;
+
     if (Math.abs(error) <= 2.0) {
       this.posOutput = 0;
       this.posIntegral += error * dt;
-      this._applyBrake(dt);
-      return;
+    } else {
+      this.posIntegral += error * dt;
+      // Teto do termo integral (como no firmware): |Ki·I| ≤ 55%
+      const integralMax = 55 / (this.posKi > 0 ? this.posKi : 1);
+      this.posIntegral = Math.max(-integralMax, Math.min(integralMax, this.posIntegral));
+      // Derivative on measurement com teto na CONTRIBUIÇÃO (±30)
+      const derivative = -(this.angle - this.posPrevAngle) / dt;
+      let dTerm = this.posKd * derivative;
+      dTerm = Math.max(-30, Math.min(30, dTerm));
+      const output = this.posKp * error + this.posKi * this.posIntegral + dTerm;
+      this.posOutput = Math.max(-100, Math.min(100, output));
     }
 
-    this.posIntegral += error * dt;
-    // Teto do termo integral (como no firmware): |Ki·I| ≤ 55% — abaixo da
-    // zona morta do motor (60%), para o I sozinho não manter o motor
-    // acionado com erro ~0 (rastejo além do alvo).
-    const integralMax = 55 / (this.posKi > 0 ? this.posKi : 1);
-    this.posIntegral = Math.max(-integralMax, Math.min(integralMax, this.posIntegral));
-    // Teto do termo derivativo (como no firmware): em alta velocidade o
-    // de/dt explode e o D sozinho inverteria a saída a cada tick. O clamp
-    // é na CONTRIBUIÇÃO (em % de saída), não no de/dt cru.
-    const derivative = -(this.angle - this.posPrevAngle) / dt;
-    let dTerm = this.posKd * derivative;
-    dTerm = Math.max(-30, Math.min(30, dTerm));
+    // --- Atuação v3 (idêntica ao controlTick do firmware) ---
+    // RPM com janela curta de 2 sub-passos (como o rpmPos do firmware):
+    // decisão de freio com a velocidade "agora", não a média atrasada.
+    this.posRpmWindow[this.posRpmIdx] = this.rpm;
+    this.posRpmIdx = (this.posRpmIdx + 1) % 2;
+    const rpmAbs = Math.abs(
+      (this.posRpmWindow[0] + this.posRpmWindow[1]) / 2);
+    const errAbs = Math.abs(error);
+    // Distância de parada predita: v·tau (RPM→°/s = ×6; tau = 0.10 s,
+    // margem = 4° — POS_BRAKE_TAU_S / POS_STOP_MARGIN_DEG no config.h)
+    const stopDeg = rpmAbs * 6 * 0.10;
 
-    const output = this.posKp * error + this.posKi * this.posIntegral + dTerm;
-    this.posOutput = Math.max(-100, Math.min(100, output));
-
-    // Atuação em camadas (idêntica ao controlTick do firmware):
-    if (Math.abs(error) <= 2.0 || Math.abs(this.posOutput) < 1) {
-      // Deadband ou PID pedindo repouso: freio (trava o eixo)
+    if (errAbs <= 2.0) {
+      // No alvo: freia e assenta
       this._applyBrake(dt);
       this._softPhase = 0;
-    } else if (Math.abs(error) < 60 && Math.abs(this.rpm) > 100) {
-      // Frenagem antecipada: em movimento e chegando perto — freia antes
-      // de entrar na zona de passos (mata a velocidade de entrada)
+    } else if (stopDeg + 4.0 >= errAbs) {
+      // Rápido demais para parar antes do alvo: freia (é também o teto
+      // de velocidade proporcional ao erro — desacelera ao aproximar)
       this._applyBrake(dt);
       this._softPhase = 0;
-    } else if (Math.abs(error) < 30) {
-      // Perto do alvo: passos discretos — [chute 1 tick a 70%] →
-      // [freio 8 ticks (descanso do driver)] → repete, direção pelo
-      // SINAL DO ERRO
+    } else if (errAbs < 15.0) {
+      // Perto do alvo e devagar: passos — chute 1 tick a 65% (direção
+      // pelo SINAL DO ERRO) → freio 8 ticks (descanso do driver)
       if (this._softPhase < 1) {
-        this._motorPlant(70 * Math.sign(error), dt);
+        this._motorPlant(65 * Math.sign(error), dt);
         this._softPhase++;
       } else if (this._softPhase < 9) {
         this._applyBrake(dt);
@@ -273,9 +286,9 @@ class Simulator {
         this._softPhase = 0;
       }
     } else {
-      // Longe do alvo: duty fixo 70% (região confiável acima do atrito)
+      // Longe e dentro do teto: drive pleno 70% na direção do erro
       this._softPhase = 0;
-      this._motorPlant(70 * Math.sign(this.posOutput), dt);
+      this._motorPlant(70 * Math.sign(error), dt);
     }
     this.posPrevAngle = this.angle;
   }

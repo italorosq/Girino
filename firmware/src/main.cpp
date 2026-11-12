@@ -48,11 +48,21 @@ void handlePositionConfig();
 void handlePositionStart();
 void handlePositionStop();
 void handlePositionZero();
-void controlTick(float rpm, float dt);
+void controlTick(float rpm, float rpmPos, float dt);
 void recordResponse(unsigned long tMs, float rpm);
 void resetResponseBuffer();
 String gainsToJson(const PidGains& g);
 String posConfigToJson();
+static void posMicroReset();
+static void posKickFinish();
+
+// --- Estado do micro-kick (v3.1), antes de loop() p/ abort fino ---
+static bool posKickActive = false;
+static unsigned long posKickStartUs = 0;
+static unsigned long posKickDurUs = 3000;
+static unsigned long posRestUntilMs = 0;
+static long posKickPulsesBefore = 0;
+static float posKickErrBefore = 0.0;
 
 // =============================================================
 // BUFFER DE RESPOSTA AO DEGRAU
@@ -123,6 +133,13 @@ void loop() {
     encoderUpdateFeedback();  // LED + telemetria do encoder (didático)
     serialConsoleUpdate();    // comandos via serial (USB)
 
+    // Abort FINO do micro-kick (~1 ms): encerra o chute no µs exato para
+    // o passo não estourar o alvo; o controlTick grosso (20 ms) cuida do
+    // resto da máquina de estados.
+    if (posKickActive && (long)(micros() - (posKickStartUs + posKickDurUs)) >= 0) {
+        posKickFinish();
+    }
+
     // Tick de controle em tempo real (50 Hz) — PID e auto-tune
     unsigned long now = millis();
     if (now - lastControlTick >= PID_SAMPLE_MS) {
@@ -160,15 +177,59 @@ void loop() {
         if (rpmRaw < rpmCtrl - maxStep) rpmRaw = rpmCtrl - maxStep;
         rpmCtrl = rpmRaw;
 
-        controlTick(rpmCtrl, dt);
+        // RPM da malha de POSIÇÃO: janela curta (POS_RPM_WINDOW_TICKS) e
+        // sem slew — o freio precisa da velocidade AGORA; a média de 80 ms
+        // e o limitador atrasam a decisão (causa do overshoot na bancada).
+        static float rpmPosWindow[POS_RPM_WINDOW_TICKS] = {0};
+        static float posDtWindow[POS_RPM_WINDOW_TICKS] = {0};
+        static uint8_t posRingIdx = 0;
+        posRingIdx = (posRingIdx + 1) % POS_RPM_WINDOW_TICKS;
+        rpmPosWindow[posRingIdx] = delta;
+        posDtWindow[posRingIdx] = dt;
+        float posDeltaSum = 0;
+        float posDtSum = 0.0;
+        for (int i = 0; i < POS_RPM_WINDOW_TICKS; i++) {
+            posDeltaSum += rpmPosWindow[i];
+            posDtSum += posDtWindow[i];
+        }
+        float rpmPos = (posDtSum > 0.0)
+                           ? ((float)posDeltaSum / (float)ENCODER_PPR) * (60.0 / posDtSum)
+                           : 0.0;
+
+        controlTick(rpmCtrl, rpmPos, dt);
     }
+}
+
+// =============================================================
+// MICRO-PASSOS perto do alvo (v3.1)
+// =============================================================
+static void posMicroReset() {
+    if (posKickActive) motorBrake();
+    posKickActive = false;
+    posRestUntilMs = 0;
+    posKickDurUs = 3000;
+}
+
+
+static void posKickFinish() {
+    motorBrake();
+    float movedDeg = fabsf((float)(encoderGetPulses() - posKickPulsesBefore)) * 0.6;
+    float wantDeg = fmaxf(1.0, posKickErrBefore / 3.0);   // passo-alvo ~erro/3
+    float f = (movedDeg > 0.05) ? (wantDeg / movedDeg) : 1.6;
+    posKickDurUs = (unsigned long)fminf(POS_MICRO_KICK_MAX_US,
+                    fmaxf(POS_MICRO_KICK_MIN_US, posKickDurUs * f));
+    posKickActive = false;
+    posRestUntilMs = millis() + POS_MICRO_REST_MS;
 }
 
 /**
  * Tick de controle: decide quem aciona o motor.
  * Prioridade: auto-tune > posição > velocidade (PID) > malha aberta.
  */
-void controlTick(float rpm, float dt) {
+void controlTick(float rpm, float rpmPos, float dt) {
+    // Kick ativo órfão (modo caiu entre ticks): freia e reseta.
+    if (posKickActive && !posIsRunning()) posMicroReset();
+
     // Telemetria didática (2x/s) enquanto um controlador está ativo —
     // permite acompanhar o experimento pelo monitor serial.
     static unsigned long lastTelemetry = 0;
@@ -211,48 +272,60 @@ void controlTick(float rpm, float dt) {
             motorSetDirection(MOTOR_DIR_STOP);
         }
     } else if (posIsRunning()) {
-        // Malha de posição — atuação em camadas (bang-bang com passos):
-        //   1. deadband (±2°), ou o PID pedindo repouso -> FREIO dinâmico;
-        //   2. perto do alvo (< 30°): PASSOS discretos — KICK ticks de
-        //      chute + REST ticks de freio; direção pelo SINAL DO ERRO;
-        //   3. longe: duty fixo POS_MAX_DUTY (65%) — NUNCA 100%: o soco
-        //      com ciclos de freio a 50 Hz levou o L298N ao desligamento
-        //      térmico na bancada (eixo travou a 171° além do alvo).
-        static int softPhase = 0;
+        // Malha de posição v3 — aproximação por distância de parada
+        // predita: freia quando v·tau >= erro restante. O teto de
+        // velocidade cai automaticamente ao aproximar do alvo, então a
+        // zona de passos só é alcançada devagar (sem overshoot de entrada).
+        // A DIREÇÃO vem sempre do SINAL DO ERRO — nunca do sinal do PID:
+        // o termo D (derivada da medição) e o integrador podem inverter
+        // o sinal da saída em movimento e faziam o firmware acionar o
+        // motor NO SENTIDO CONTRÁRIO em vez de frear (caça longa medida
+        // na bancada). O PID de posição segue calculado a cada tick só
+        // para telemetria/didática (gráfico e API).
         float angle = encoderGetAngle();
         float error = posGetTarget() - angle;
         float out = posCompute(angle, dt);
-        float rpmAbs = fabsf(rpm);
+        float errAbs = fabsf(error);
+        float rpmAbs = fabsf(rpmPos);
+        float stopDeg = rpmAbs * 6.0 * POS_BRAKE_TAU_S;
 
-        if (fabsf(error) <= POS_DEADBAND_DEG || fabsf(out) < POS_DRIVE_EPS) {
+        if (errAbs <= POS_DEADBAND_DEG) {
+            // No alvo: freia e assenta.
+            posMicroReset();
             motorBrake();
-            softPhase = 0;
-        } else if (fabsf(error) < POS_BRAKE_ZONE_DEG && rpmAbs > POS_BRAKE_ZONE_RPM) {
-            // Frenagem antecipada: ainda longe do alvo mas em movimento —
-            // freia ANTES de entrar na zona de passos, senão a velocidade
-            // de entrada atravessa o alvo (overshoot).
+        } else if (stopDeg + POS_STOP_MARGIN_DEG >= errAbs) {
+            // Rápido demais para parar antes do alvo: freia. Este mesmo
+            // teste limita a velocidade de aproximação (teto proporcional
+            // ao erro) e mantém o freio até o teste dos passos valer.
+            posMicroReset();
             motorBrake();
-            softPhase = 0;
-        } else if (fabsf(error) < POS_SOFT_NEAR_DEG) {
-            if (softPhase < POS_SOFT_KICK_TICKS) {
+        } else if (errAbs < POS_STEP_ZONE_DEG) {
+            // Perto do alvo e devagar: MICRO-PASSOS — kick de duração
+            // adaptativa a 70% (abort fino em loop(), direção reavaliada
+            // a cada tick pelo sinal do erro) + descanso de freio.
+            unsigned long nowUs = micros();
+            if (posKickActive) {
+                // em andamento — abort acontece em loop() (resolução µs)
+            } else if ((long)(posRestUntilMs - nowMs) > 0) {
+                motorBrake();   // descanso térmico do L298N entre chutes
+            } else {
+                posKickPulsesBefore = encoderGetPulses();
+                posKickErrBefore = errAbs;
+                posKickStartUs = nowUs;
                 if (error > 0) {
                     motorSetDirection(MOTOR_DIR_FORWARD);
-                    motorSetSpeed(POS_MAX_DUTY);
                 } else {
                     motorSetDirection(MOTOR_DIR_REVERSE);
-                    motorSetSpeed(POS_MAX_DUTY);
                 }
-                softPhase++;
-            } else if (softPhase < POS_SOFT_KICK_TICKS + POS_SOFT_REST_TICKS) {
-                motorBrake();
-                softPhase++;
-            } else {
-                softPhase = 0;
+                motorSetSpeed(POS_MAX_DUTY);
+                posKickActive = true;
             }
         } else {
-            softPhase = 0;
-            // Direção pela saída do PID (sinal), duty na região confiável
-            if (out >= 0.0) {
+            // Longe e dentro do teto de velocidade: drive pleno na região
+            // confiável (POS_MAX_DUTY — nunca 100%: o soco com ciclos de
+            // freio a 50 Hz levou o L298N ao desligamento térmico).
+            posMicroReset();
+            if (error > 0) {
                 motorSetDirection(MOTOR_DIR_FORWARD);
                 motorSetSpeed(POS_MAX_DUTY);
             } else {
@@ -260,8 +333,14 @@ void controlTick(float rpm, float dt) {
                 motorSetSpeed(POS_MAX_DUTY);
             }
         }
+#if POS_TRACE
+        char ph = posKickActive ? 'K' : ((long)(posRestUntilMs - nowMs) > 0 ? 'R' : 'B');
+        Serial.printf("[PosV] %c A=%.1f E=%.1f RPM=%.0f stop=%.1f dur=%lu\n",
+                      ph, angle, error, rpmAbs, stopDeg, (unsigned long)posKickDurUs);
+#endif
         recordResponse(millis() - responseStart, angle);
-        if (verbose) Serial.printf("[Pos] Alvo=%.1f Angulo=%.1f Out=%.0f%%\n", posGetTarget(), angle, out);
+        if (verbose) Serial.printf("[Pos] Alvo=%.1f Angulo=%.1f Erro=%.1f RPM=%.0f Out=%.0f%%\n",
+                                   posGetTarget(), angle, error, rpmAbs, out);
     } else if (pidIsRunning()) {
         // A malha de velocidade é unidirecional (só horário): usa o módulo
         // da velocidade como realimentação — assim continua regulando mesmo
